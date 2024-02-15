@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en" >
+<head>
+  <meta charset="UTF-8">
+  <title>CodePen - Saki Play</title>
+  <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/daisyui@3.1.6/dist/full.css'>
+<link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.css'><link rel="stylesheet" href="./style.css">
+
+</head>
+<body>
+<!-- partial:index.partial.html -->
+<body class="h-screen flex flex-col" data-theme="emerald">
+  <header class="flex-none flex flex-row flex-wrap justify-between bg-cyan-100">
+    <h1>Saki Play</h1>
+    <nav>
+      <ul>
+        <li>Settings</li>
+      </ul>
+    </nav>
+  </header>
+  <main class="grow flex flex-col flex-wrap content-start overflow-auto">
+    <article class="p-2 max-h-full w-full md:w-1/2 lg:w-1/3 flex flex-col">
+      <h2 class="flex-none">Write your PEG here</h2>
+      <section class="grow border-2 border-gray-300 overflow-y-auto"><pre id="code" class="code p-1 h-full overflow-auto" contenteditable="true"></pre></section>
+      <section class="flex-none"><h3>Parsed successfully</h3></section>
+    </article>
+    <article class="p-2 max-h-full w-full md:w-1/2 lg:w-1/3 flex flex-col">
+      <h2 class="flex-none">Write input here</h2>
+      <section class="grow border-2 border-gray-300 overflow-y-auto"><pre id="input" class="code p-1 h-full overflow-auto" contenteditable="true"></pre></section>
+      <section class="flex-none"><h3>Parsed successfully</h3></section>
+    </article>
+    <article class="p-2 max-h-full w-full md:w-1/2 lg:w-1/3 flex flex-col">
+      <h2 class="flex-none">Here is the output</h2>
+      <section class="grow border-2 border-gray-300 overflow-y-auto"><pre id="output" class="code p-1 h-full  bg-gray-100 overflow-auto"></pre></section>
+    </article>
+  </main>
+  <footer class="flex-none bg-cyan-100">
+    <small>Copyright</small>
+  </footer>
+</body>
+<!-- partial -->
+  <script  src="./script.js"></script>
+
+</body>
+</html>
