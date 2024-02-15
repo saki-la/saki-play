@@ -34,21 +34,13 @@
   );
 
 */
+import { intrinsic } from 'https://saki-la.github.io/saki-play/intrinsic.js';
 
 const outputJSON = true;
 const outputStr = true;
 const compact = true;  // whether the output is compacted
 
-const library = {
-  // f| (x| x x) (x| f; x x)
-  "Y": ["Bxy",1,["Sxy",1,["I"],["I"]],["Cxy",1,["B",1],["Sxy",1,["I"],["I"]]]],
-  "F": ["Kx",1,["I"]],                 // x|y| y 
-  "T": ["K",1],                        // x|y| x
-  "not": ["C",1],                      // a|x|y| a y x
-  "and": ["Cxy",2,["I"],["var","F"]],  // a|b| a b F
-  "or": ["Cxy",1,["I"],["var","T"]],   // a|b| a T b
-  // xor = a|b| a (not b) b
-  "xor": ["Cxy",1,["Bxy",1,["S",1],["Cxy",1,["B",1],["var","not"]]],["I"]],
+const library = Object.assign(intrinsic, {
   // sub1 = x|y|b| x (s| s (y b; not b); y b F) (s| s (y (not b) b); y T b)
   "sub1": ["Cxy",1,["Bxy",1,["S",2],["Cxy",1,["B",2],["Sxy",2,["Bxy",2,["Cx",1,["I"]],["Cxy",1,["S",1],["var","not"]]],["Cxy",2,["I"],["var","F"]]]]],["Sxy",2,["Bxy",2,["Cx",1,["I"]],["Cxy",1,["Bxy",1,["S",1],["Cxy",1,["B",1],["var","not"]]],["I"]]],["Cxy",1,["I"],["var","T"]]]],
   // sub2 = x0|x1|y0|y1|b0| sub1 x0 y0 b0 (l0|l1|b1| sub1 x1 y1 b1; u0|u1|b2|s| s l0 l1 u0 u1 b2)
@@ -59,7 +51,7 @@ const library = {
   "sub8": ["Cxy",4,["Bxy",4,["B",4],["Bxy",4,["C",4],["Bxy",8,["B",4],["Bxy",8,["C",1],["var","sub4"]]]]],["Cxy",8,["Bxy",8,["B",4],["Bxy",8,["C",1],["var","sub4"]]],["Bxy",8,["C",1],["Bxy",7,["C",1],["Bxy",6,["C",1],["Bxy",5,["C",1],["Bxy",4,["C",1],["Bxy",3,["C",1],["Bxy",2,["C",1],["Bxy",1,["C",1],["Cx",1,["I"]]]]]]]]]]]]
   // x|y|b| x (s| s (y b; (a|x|y| a y x) b) (y b; x|y| y)) (s| s (y ((a|x|y| a y x) b) b) (y (x|y| x) b))
   //"sub1": ["Cxy",1,["Bxy",1,["S",2],["Cxy",1,["B",2],["Sxy",2,["Bxy",2,["C",1],["Bxy",2,["Cx",1,["I"]],["Cxy",1,["S",1],["C",1]]]],["Cxy",2,["I"],["Kx",1,["I"]]]]]],["Sxy",2,["Bxy",2,["C",1],["Bxy",2,["Cx",1,["I"]],["Cxy",1,["Bxy",1,["S",1],["Cxy",1,["B",1],["C",1]]],["I"]]]],["Cxy",1,["I"],["K",1]]]]
-};
+});
 
 const cloneCXP = (cxp) => ({
   "Sxy": () => ["Sxy", cxp[1], cloneCXP(cxp[2]), cloneCXP(cxp[3])].concat(cxp.slice(4)),
@@ -447,7 +439,7 @@ const genOutputData = (cxpOrg, input) => {  // generate output data
   ] : cxpOrg;  // no input if input is not given
   reduceCXP(cxp);  // reduce without output
   if (outputJSON) {
-    const json = toStr(CXPtoJSON(cloneCXP(cxp)));
+    const json = toStr(CXPtoJSON(removeVoid(cxp)));
     if (json !== void 0)
       return json;
   }
