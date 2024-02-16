@@ -142,25 +142,25 @@ function peg$parse(input, options) {
       peg$startRuleFunction  = peg$parsemain,
 
       peg$c0 = peg$anyExpectation(),
-      peg$c1 = function(s, x) { return (s===""?[]:[s]).concat(x===""?[]:x); },
-      peg$c2 = function(x, s) { return [["main",[x]]].concat(s===""?[]:[s]); },
+      peg$c1 = function(s, x) { return (s?[s]:[]).concat(x?[x]:[]); },
+      peg$c2 = function(x, s) { return [["main",[x]]].concat(s?[s]:[]); },
       peg$c3 = /^[(]/,
       peg$c4 = peg$classExpectation(["("], false, false),
       peg$c5 = /^[)]/,
       peg$c6 = peg$classExpectation([")"], false, false),
-      peg$c7 = function(s1, x, s2) { return ["paren",[["","("]].concat(s1===""?[]:[s1]).concat([["x",[x]]]).concat(s2===""?[]:[s2]).concat([["",")"]])]; },
+      peg$c7 = function(s1, x, s2) { return ["paren",[["","("]].concat(s1?[s1]:[]).concat([["x",[x]]]).concat((s2?[s2]:[])).concat([["",")"]])]; },
       peg$c8 = /^[|]/,
       peg$c9 = peg$classExpectation(["|"], false, false),
-      peg$c10 = function(v, s1, s2, x) { return ["lambda", [v].concat(s1===""?[]:[s1]).concat([["","|"]]).concat(s2===""?[]:[s2]).concat([["x",[x]]])]; },
+      peg$c10 = function(v, s1, s2, x) { return ["lambda", [v].concat(s1?[s1]:[]).concat([["","|"]]).concat(s2?[s2]:[]).concat([["x",[x]]])]; },
       peg$c11 = /^[=]/,
       peg$c12 = peg$classExpectation(["="], false, false),
-      peg$c13 = function(v, s1, s2, x, r) { return ["asExpr", [v].concat(s1===""?[]:[s1]).concat([["","="]]).concat(s2===""?[]:[s2]).concat([["x",[x]]]).concat(r)]; },
+      peg$c13 = function(v, s1, s2, x, r) { return ["asExpr", [v].concat(s1?[s1]:[]).concat([["","="]]).concat(s2?[s2]:[]).concat([["x",[x]]]).concat(r)]; },
       peg$c14 = /^[;]/,
       peg$c15 = peg$classExpectation([";"], false, false),
-      peg$c16 = function(s1, s2, y) { return (s1===""?[]:[s1]).concat([["",";"]]).concat(s2===""?[]:[s2]).concat([["y",[y]]]); },
-      peg$c17 = function(x, s1, s2, y) { return ["appS", [["x",[x]]].concat(s1===""?[]:[s1]).concat([["",";"]]).concat(s2===""?[]:[s2]).concat([["y",[y]]])]; },
+      peg$c16 = function(s1, s2, y) { return (s1?[s1]:[]).concat([["",";"]]).concat(s2?[s2]:[]).concat([["y",[y]]]); },
+      peg$c17 = function(x, s1, s2, y) { return ["appS", [["x",[x]]].concat(s1?[s1]:[]).concat([["",";"]]).concat(s2?[s2]:[]).concat([["y",[y]]])]; },
       peg$c18 = function(x, xs) { return ["appL",[["x",[x]]].concat(xs.reduce((a,c) => a.concat(c)))]; },
-      peg$c19 = function(s, x) { return (s===""?[]:[s]).concat([["x",[x]]]); },
+      peg$c19 = function(s, x) { return (s?[s]:[]).concat([["x",[x]]]); },
       peg$c20 = /^[0-9]/,
       peg$c21 = peg$classExpectation([["0", "9"]], false, false),
       peg$c22 = /^[_0-9A-Za-z]/,
@@ -1016,11 +1016,7 @@ function peg$parse(input, options) {
   }
 }
 
-/*
 module.exports = {
   SyntaxError: peg$SyntaxError,
   parse:       peg$parse
 };
-*/
-export const parse = (input, options) => peg$parse(input, options);
-
