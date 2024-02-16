@@ -1016,7 +1016,10 @@ function peg$parse(input, options) {
   }
 }
 
+/*
 module.exports = {
   SyntaxError: peg$SyntaxError,
   parse:       peg$parse
 };
+*/
+export const parse = (input, options) => peg$parse(input, options);
