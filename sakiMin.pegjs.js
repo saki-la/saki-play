@@ -143,7 +143,7 @@ function peg$parse(input, options) {
 
       peg$c0 = peg$anyExpectation(),
       peg$c1 = function(s, x) { return (s?[s]:[]).concat(x?[x]:[]); },
-      peg$c2 = function(x, s) { return [["main",[x]]].concat(s?[s]:[]); },
+      peg$c2 = function(x, s) { return ["main",[x]].concat(s?[s]:[]); },
       peg$c3 = /^[(]/,
       peg$c4 = peg$classExpectation(["("], false, false),
       peg$c5 = /^[)]/,
@@ -1016,10 +1016,7 @@ function peg$parse(input, options) {
   }
 }
 
-/*
 module.exports = {
   SyntaxError: peg$SyntaxError,
   parse:       peg$parse
 };
-*/
-export const parse = (input, options) => peg$parse(input, options);
