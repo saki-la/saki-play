@@ -1022,4 +1022,4 @@ module.exports = {
   parse:       peg$parse
 };
 */
-export const parse = (input, options) => peg$parse(input, options)[0];
+export const parse = (input, options) => peg$parse(input, options);
