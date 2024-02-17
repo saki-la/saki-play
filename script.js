@@ -35,22 +35,26 @@
 
 */
 import { intrinsic } from 'https://saki-la.github.io/saki-play/intrinsic.js';
+import { parse } from 'https://saki-la.github.io/saki-play/sakiMin.pegjs.js';
+import { pegToLXP } from 'https://saki-la.github.io/saki-play/PEGToLXP.js';
+import { LXPtoCXP } from 'https://saki-la.github.io/saki-play/LXPtoCXP.js';
 
 const outputJSON = true;
+const StringfyCXP = true;
 const outputStr = true;
 const compact = true;  // whether the output is compacted
 
 const library = Object.assign(intrinsic, {
-  // sub1 = x|y|b| x (s| s (y b; not b); y b F) (s| s (y (not b) b); y T b)
-  "sub1": ["Cxy",1,["Bxy",1,["S",2],["Cxy",1,["B",2],["Sxy",2,["Bxy",2,["Cx",1,["I"]],["Cxy",1,["S",1],["var","not"]]],["Cxy",2,["I"],["var","F"]]]]],["Sxy",2,["Bxy",2,["Cx",1,["I"]],["Cxy",1,["Bxy",1,["S",1],["Cxy",1,["B",1],["var","not"]]],["I"]]],["Cxy",1,["I"],["var","T"]]]],
-  // sub2 = x0|x1|y0|y1|b0| sub1 x0 y0 b0 (l0|l1|b1| sub1 x1 y1 b1; u0|u1|b2|s| s l0 l1 u0 u1 b2)
-  "sub2": ["Cxy",1,["Bxy",1,["B",1],["Bxy",1,["C",1],["Bxy",2,["B",1],["Bxy",2,["C",1],["var","sub1"]]]]],["Cxy",2,["Bxy",2,["B",2],["Bxy",2,["C",1],["var","sub1"]]],["Bxy",4,["C",1],["Bxy",3,["C",1],["Bxy",2,["C",1],["Bxy",1,["C",1],["Cx",1,["I"]]]]]]]],
-  // sub4 = x0|x1|x2|x3|y0|y1|y2|y3|b0| sub2 x0 x1 y0 y1 b0 (l0|l1|b1| sub2 x2 x3 y2 y3 b1; u0|u1|b2|s| s l0 l1 u0 u1 b2)
-  "sub4": ["Cxy",2,["Bxy",2,["B",2],["Bxy",2,["C",2],["Bxy",4,["B",2],["Bxy",4,["C",1],["var","sub2"]]]]],["Cxy",4,["Bxy",4,["B",2],["Bxy",4,["C",1],["var","sub2"]]],["Bxy",4,["C",1],["Bxy",3,["C",1],["Bxy",2,["C",1],["Bxy",1,["C",1],["Cx",1,["I"]]]]]]]],
+  // sub2 F F F F F (r0|r1|b| f|x| f r0; f|x| f r1; f|x| f b; f|x| x)
+  // sub4 F F F F F F F F F (r0|r1|r2|r3|b| f|x| f r0; f|x| f r1; f|x| f r2; f|x| f r3; f|x| f b; f|x| x)
+  
+  // sub8 F F F F F F F F F F F F F F F F F (l0|l1|l2|l3|u0|u1|u2|u3|b| f|x| f l0; f|x| f l1; f|x| f l2; f|x| f l3; f|x| f u0; f|x| f u1; f|x| f u2; f|x| f u3; f|x| f b; f|x| x) 
+  
   // sub8 = x0|x1|x2|x3|x4|x5|x6|x7|y0|y1|y2|y3|y4|y5|y6|y7|b0| sub4 x0 x1 x2 x3 y0 y1 y2 y3 b0 (l0|l1|l2|l3|b1| sub4 x4 x5 x6 x7 y4 y5 y6 y7 b1; u0|u1|u2|u3|b2|s| s l0 l1 l2 l3 u0 u1 u2 u3 b2)
-  "sub8": ["Cxy",4,["Bxy",4,["B",4],["Bxy",4,["C",4],["Bxy",8,["B",4],["Bxy",8,["C",1],["var","sub4"]]]]],["Cxy",8,["Bxy",8,["B",4],["Bxy",8,["C",1],["var","sub4"]]],["Bxy",8,["C",1],["Bxy",7,["C",1],["Bxy",6,["C",1],["Bxy",5,["C",1],["Bxy",4,["C",1],["Bxy",3,["C",1],["Bxy",2,["C",1],["Bxy",1,["C",1],["Cx",1,["I"]]]]]]]]]]]]
-  // x|y|b| x (s| s (y b; (a|x|y| a y x) b) (y b; x|y| y)) (s| s (y ((a|x|y| a y x) b) b) (y (x|y| x) b))
-  //"sub1": ["Cxy",1,["Bxy",1,["S",2],["Cxy",1,["B",2],["Sxy",2,["Bxy",2,["C",1],["Bxy",2,["Cx",1,["I"]],["Cxy",1,["S",1],["C",1]]]],["Cxy",2,["I"],["Kx",1,["I"]]]]]],["Sxy",2,["Bxy",2,["C",1],["Bxy",2,["Cx",1,["I"]],["Cxy",1,["Bxy",1,["S",1],["Cxy",1,["B",1],["C",1]]],["I"]]]],["Cxy",1,["I"],["K",1]]]]
+  "sub8": ["Cxy",4,["Bxy",4,["B",4],["Bxy",4,["C",4],["Bxy",8,["B",4],["Bxy",8,["C",1],["var","sub4"]]]]],["Cxy",8,["Bxy",8,["B",4],["Bxy",8,["C",1],["var","sub4"]]],["Bxy",8,["C",1],["Bxy",7,["C",1],["Bxy",6,["C",1],["Bxy",5,["C",1],["Bxy",4,["C",1],["Bxy",3,["C",1],["Bxy",2,["C",1],["Bxy",1,["C",1],["Cx",1,["I"]]]]]]]]]]]],
+ // x0|x1|x2|x3|x4|x5|x6|x7|y0|y1|y2|y3|y4|y5|y6|y7| sub8 x0 x1 x2 x3 x4 x5 x6 x7 y0 y1 y2 y3 y4 y5 y6 y7 F (r0|r1|r2|r3|r4|r5|r6|r7|b| b)
+  "lt8": ["Cxy",16,["Cxy",16,["var","sub8"],["var","F"]],["Kx",8,["I"]]],
+  "n15": ["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["I"],["K",1]],["K",1]],["K",1]],["K",1]],["Kx",1,["I"]]],["Kx",1,["I"]]],["Kx",1,["I"]]],["Kx",1,["I"]]]
 });
 
 const cloneCXP = (cxp) => ({
@@ -68,8 +72,8 @@ const cloneCXP = (cxp) => ({
   "I": () => ["I", void 0, void 0, void 0].concat(cxp.slice(1)),
   "app": () => ["app", cloneCXP(cxp[1]), cloneCXP(cxp[2]), void 0].concat(cxp.slice(3)),
   "var": () => ["var", cxp[1], void 0, void 0].concat(cxp.slice(2)),
-  "()": () => ["()", void 0, void 0, void 0].concat(cxp.slice(1)),
-}[cxp[0]])();
+  "()": () => ["()", void 0, void 0, void 0].concat(cxp.slice(1))
+}[cxp[0]] ?? (() => ["+", cxp, void 0, void 0]))();
 const removeVoid = (cxp) => ({
   "Sxy": () => ["Sxy", cxp[1], removeVoid(cxp[2]), removeVoid(cxp[3])].concat(cxp.slice(4)),
   "Sx": () => ["Sx", cxp[1], removeVoid(cxp[2])].concat(cxp.slice(4)),
@@ -90,6 +94,24 @@ const removeVoid = (cxp) => ({
     reduceCXP(cxp);
     return removeVoid(cxp);
   }
+}[cxp[0]])();
+const NToStr = (n) => (n == 1) ? "" : "" + n;
+const CXPtoStr = (cxp) => ({
+  "Sxy": () => "(S" + NToStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + " " + CXPtoStr(cxp[3]) + ")",
+  "Sx": () => "(S" + NToStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+  "S": () => "S",
+  "Kx": () => "(K" + NToStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+  "K": () => "K",
+  "Cxy": () => "(C" + NToStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + " " + CXPtoStr(cxp[3]) + ")",
+  "Cx": () => "(C" + NToStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+  "C": () => "C",
+  "Bxy": () => "(B" + NToStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + " " + CXPtoStr(cxp[3]) + ")",
+  "Bx": () => "(B" + NToStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+  "B": () => "B",
+  "I": () => "I",
+  "app": () => "(" + CXPtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+  "var": () => cxp[1],
+  "()": () => "()"
 }[cxp[0]])();
  
 const reduceOne = (cxp, apps) => {  // reduce one step
@@ -436,14 +458,18 @@ const genOutputData = (cxpOrg, input) => {  // generate output data
     cloneCXP(cxpOrg),
     ["+", input, void 0, void 0],  // sentinel to input
     void 0
-  ] : cxpOrg;  // no input if input is not given
+  ] : cloneCXP(cxpOrg);  // no input if input is not given
   reduceCXP(cxp);  // reduce without output
   if (outputJSON) {
     const json = toStr(CXPtoJSON(removeVoid(cxp)));
     if (json !== void 0)
       return json;
   }
-  return removeVoid(cxp);
+  if (StringfyCXP) {
+    return CXPtoStr(removeVoid(cxp));
+  } else {
+    return removeVoid(cxp);
+  }
 };
 
 const nodeToText = (nd) => {
@@ -471,21 +497,38 @@ const nodesToText = (ns) => {
 };
 
 const updateOutput = () => {
+  const code = nodesToText(document.getElementById("code").childNodes);
+  const inputElem = nodesToText(document.getElementById("input").childNodes);
+
   let data, input;
   try {
-    data = JSON.parse(nodesToText(document.getElementById("code").childNodes));
+    data = JSON.parse(code);
   } catch {
-    // ignore input errors
+    try {
+      data = LXPtoCXP(pegToLXP(parse(code)));
+    } catch {
+      data = void 0; // ignore input errors
+    }
   }
   try {
-    input = JSON.parse(nodesToText(document.getElementById("input").childNodes));
+    input = JSON.parse(inputElem);
   } catch {
-    // ignore input errors
+    try {
+      input = LXPtoCXP(pegToLXP(parse(inputElem)));
+      if (input[0] == "()")
+        input = void 0;
+    } catch {
+      input = void 0; // ignore input errors
+    }
   }
-  if (data !== undefined) {
-    data = genOutputData(data, input);
+  if (data !== void 0) {
+    try {
+      data = genOutputData(data, input);
+    } catch {
+      // ignore input errors
+    }
   }
-  if (data === undefined) {
+  if (data === void 0) {
     data = "(no output)";
   } else if (typeof data !== "string") {
     if (compact) {
