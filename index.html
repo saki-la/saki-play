@@ -15,8 +15,23 @@
   <header class="flex-none flex flex-row flex-wrap justify-between bg-cyan-100">
     <h1>Saki Play</h1>
     <nav>
-      <ul>
-        <li>Settings</li>
+      <ul class="flex flex-row gap-2">
+        <li class="inline-flex">
+          <input id="outputJSON" type="checkbox" disabled>
+          <label for="outputJSON">JSON</label>
+        </li>
+        <li class="inline-flex">
+          <input id="StringfyCXP" type="checkbox" disabled>
+          <label for="StringfyCXP">CXP</label>
+        </li>
+        <li class="inline-flex">
+          <input id="outputStr" type="checkbox" disabled>
+          <label for="outputStr">Str</label>
+        </li>
+        <li class="inline-flex">
+          <input id="compact" type="checkbox" disabled>
+          <label for="compact">C</label>
+        </li>
       </ul>
     </nav>
   </header>
@@ -32,7 +47,10 @@
       <section class="flex-none"><h3>Parsed successfully</h3></section>
     </article>
     <article class="p-2 max-h-full w-full md:w-1/2 lg:w-1/3 flex flex-col">
-      <h2 class="flex-none">Here is the output</h2>
+      <h2 class="flex-none flex flex-row flex-wrap justify-between">
+        <div>Here is the output</div>
+        <buttonn id="copyToClipboard" class="bg-blue-500 hover:bg-blue-700 text-white px-4 rounded">Copy</button>
+      </h2>
       <section class="grow border-2 border-gray-300 overflow-y-auto"><pre id="output" class="code p-1 h-full  bg-gray-100 overflow-auto"></pre></section>
     </article>
   </main>

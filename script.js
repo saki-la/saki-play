@@ -39,22 +39,13 @@ import { parse } from 'https://saki-la.github.io/saki-play/sakiMin.pegjs.js';
 import { pegToLXP } from 'https://saki-la.github.io/saki-play/PEGToLXP.js';
 import { LXPtoCXP } from 'https://saki-la.github.io/saki-play/LXPtoCXP.js';
 
-const outputJSON = true;
-const StringfyCXP = true;
-const outputStr = true;
-const compact = true;  // whether the output is compacted
+let outputJSON = true;
+let StringfyCXP = false;
+let outputStr = true;
+let compact = true;  // whether the output is compacted
 
 const library = Object.assign(intrinsic, {
   // sub2 F F F F F (r0|r1|b| f|x| f r0; f|x| f r1; f|x| f b; f|x| x)
-  // sub4 F F F F F F F F F (r0|r1|r2|r3|b| f|x| f r0; f|x| f r1; f|x| f r2; f|x| f r3; f|x| f b; f|x| x)
-  
-  // sub8 F F F F F F F F F F F F F F F F F (l0|l1|l2|l3|u0|u1|u2|u3|b| f|x| f l0; f|x| f l1; f|x| f l2; f|x| f l3; f|x| f u0; f|x| f u1; f|x| f u2; f|x| f u3; f|x| f b; f|x| x) 
-  
-  // sub8 = x0|x1|x2|x3|x4|x5|x6|x7|y0|y1|y2|y3|y4|y5|y6|y7|b0| sub4 x0 x1 x2 x3 y0 y1 y2 y3 b0 (l0|l1|l2|l3|b1| sub4 x4 x5 x6 x7 y4 y5 y6 y7 b1; u0|u1|u2|u3|b2|s| s l0 l1 l2 l3 u0 u1 u2 u3 b2)
-  "sub8": ["Cxy",4,["Bxy",4,["B",4],["Bxy",4,["C",4],["Bxy",8,["B",4],["Bxy",8,["C",1],["var","sub4"]]]]],["Cxy",8,["Bxy",8,["B",4],["Bxy",8,["C",1],["var","sub4"]]],["Bxy",8,["C",1],["Bxy",7,["C",1],["Bxy",6,["C",1],["Bxy",5,["C",1],["Bxy",4,["C",1],["Bxy",3,["C",1],["Bxy",2,["C",1],["Bxy",1,["C",1],["Cx",1,["I"]]]]]]]]]]]],
- // x0|x1|x2|x3|x4|x5|x6|x7|y0|y1|y2|y3|y4|y5|y6|y7| sub8 x0 x1 x2 x3 x4 x5 x6 x7 y0 y1 y2 y3 y4 y5 y6 y7 F (r0|r1|r2|r3|r4|r5|r6|r7|b| b)
-  "lt8": ["Cxy",16,["Cxy",16,["var","sub8"],["var","F"]],["Kx",8,["I"]]],
-  "n15": ["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["I"],["K",1]],["K",1]],["K",1]],["K",1]],["Kx",1,["I"]]],["Kx",1,["I"]]],["Kx",1,["I"]]],["Kx",1,["I"]]]
 });
 
 const cloneCXP = (cxp) => ({
@@ -114,257 +105,264 @@ const CXPtoStr = (cxp) => ({
   "()": () => "()"
 }[cxp[0]])();
  
-const reduceOne = (cxp, apps) => {  // reduce one step
-  const popApp = () => {
-    const newCXP = apps.pop();
-    if (newCXP !== void 0) {
-      if (newCXP[0] != "app" || newCXP[1] !== cxp)
-        throw new Error("inconsistent cxp at ReduceOne")
-      return [true, newCXP, apps];
-    } else {
-      return [false, cxp, apps];  // insufficient arguments
-    }
-  };
-  return ({
-    "Sxy": popApp,
-    "Sx": popApp,
-    "S": popApp,
-    "Kx": popApp,
-    "K": popApp,
-    "Cxy": popApp,
-    "Cx": popApp,
-    "C": popApp,
-    "Bxy": popApp,
-    "Bx": popApp,
-    "B": popApp,
-    "I": popApp,
-    "app": () => {
-      const [app, x, y, v0] = cxp;
-      return ({
-        "Sxy": () => {  // cxp ["app", x ["Sxy", n, xx, xy], y, v0]
-          // distribute y to both xx and xy
-          const [sxy, n, xx, xy] = x;
-          if (n >= 2) {
-            cxp[0] = sxy;
-            cxp[1] = n - 1;
-            cxp[2] = [app, xx, y, v0];
-            cxp[3] = [app, xy, y, v0];
-          } else {  // n == 1
-            //cxp[0] = app;
-            cxp[1] = [app, xx, y, v0];
-            cxp[2] = [app, xy, y, v0];
-            //cxp[3] = v0;
-          }
-          return [true, cxp, apps];
-        },
-        "Sx": () => {  // cxp ["app", x ["Sx", n, xx, v1], y, v0]
-          const [sx, n, xx, v1] = x;
-          cxp[0] = "Sxy";
-          cxp[1] = n;
-          cxp[2] = xx;
-          cxp[3] = y;
-          return [true, cxp, apps];
-        },
-        "S": () => {  // cxp ["app", x ["S", n, v1, v2], y, v0]
-          const [s, n, v1, v2] = x;
-          cxp[0] = "Sx";
-          cxp[1] = n;
-          cxp[2] = y;
-          //cxp[3] = v0;
-          return [true, cxp, apps];
-        },
-        "Cxy": () => {  // cxp ["app", x ["Cxy", n, xx, xy], y, v0]
-          // distribute y to xx only
-          const [cxy, n, xx, xy] = x;
-          if (n >= 2) {
-            cxp[0] = cxy;
-            cxp[1] = n - 1;
-            cxp[2] = [app, xx, y, v0];
-            cxp[3] = xy;
-          } else {  // n == 1
-            //cxp[0] = app;
-            cxp[1] = [app, xx, y, v0];
-            cxp[2] = xy;
-            //cxp[3] = v0;
-          }
-          return [true, cxp, apps];
-        },
-        "Cx": () => {  // cxp ["app", x ["Cx", n, xx, v1], y, v0]
-          const [cx, n, xx, v1] = x;
-          cxp[0] = "Cxy";
-          cxp[1] = n;
-          cxp[2] = xx;
-          cxp[3] = y;
-          return [true, cxp, apps];
-        },
-        "C": () => {  // cxp ["app", x ["C", n, v1, v2], y, v0]
-          const [c, n, v1, v2] = x;
-          cxp[0] = "Cx";
-          cxp[1] = n;
-          cxp[2] = y;
-          //cxp[3] = v0;
-          return [true, cxp, apps];
-        },
-        "Bxy": () => {  // cxp ["app", x ["Bxy", n, xx, xy], y, v0]
-          // distribute y to xy only
-          const [bxy, n, xx, xy] = x;
-          if (n >= 2) {
-            cxp[0] = bxy;
-            cxp[1] = n - 1;
-            cxp[2] = xx;
-            cxp[3] = [app, xy, y, v0];
-          } else {  // n == 1
-            //cxp[0] = app;
-            cxp[1] = xx;
-            cxp[2] = [app, xy, y, v0];
-            //cxp[3] = v0;
-          }
-          return [true, cxp, apps];
-        },
-        "Bx": () => {  // cxp ["app", x ["Bx", n, xx, v1], y, v0]
-          const [bx, n, xx, v1] = x;
-          cxp[0] = "Bxy";
-          cxp[1] = n;
-          cxp[2] = xx;
-          cxp[3] = y;
-          return [true, cxp, apps];
-        },
-        "B": () => {  // cxp ["app", x ["B", n, v1, v2], y, v0]
-          const [s, n, v1, v2] = x;
-          cxp[0] = "Bx";
-          cxp[1] = n;
-          cxp[2] = y;
-          //cxp[3] = v0;
-          return [true, cxp, apps];
-        },
-        "Kx": () => {  // cxp ["app", x ["Kx", n, xx, v1], y, v0]
-          // remove y
-          const [kx, n, xx, v1] = x;
-          if (n >= 2) {
-            cxp[0] = kx;
-            cxp[1] = n - 1;
-            cxp[2] = xx;
-            //cxp[3] = v0;
-          } else {  // n == 1
-            cxp[0] = xx[0];
-            cxp[1] = xx[1];
-            cxp[2] = xx[2];
-            cxp[3] = xx[3];
-          }
-          return [true, cxp, apps];
-        },
-        "K": () => {  // cxp ["app", x ["K", n, v1, v2], y, v0]
-          const [k, n, v1, v2] = x;
-          cxp[0] = "Kx";
-          cxp[1] = n;
-          cxp[2] = y;
-          //cxp[3] = v0;
-          return [true, cxp, apps];
-        },
-        "I": () => {  // cxp ["app", x ["I", v1, v2, v3], y, v0]
-          cxp[0] = y[0];
-          cxp[1] = y[1];
-          cxp[2] = y[2];
-          cxp[3] = y[3];
-          return [true, cxp, apps];
-        }
-      }[x[0]] ?? (() => {
-        apps.push(cxp);
-        return [true, x, apps];
-      }))();
-    },  // cxp[0] == "app"
-    "var": () => {  // cxp ["var", v, v0, v1]
-      const fn = library[cxp[1]];
-      if (fn !== void 0) {
-        const newCXP = cloneCXP(fn);
-        cxp[0] = newCXP[0];
-        cxp[1] = newCXP[1];
-        cxp[2] = newCXP[2];
-        cxp[3] = newCXP[3];
-        return [true, cxp, apps];
-      } else {
-        return [false, cxp, apps];  // undefined variable
-      }
-    },
-    "()": () => [false, cxp, apps],  // reduce on placeholder
-    "+": () => {  // cxp ["+", input, v0, v1]
-      const [plus, input, v0, v1] = cxp;
-      return ({
-        "boolean": () => {
-          if (input) {  // true
-            cxp[0] = "K";
-            cxp[1] = 1;
-            cxp[2] = void 0;
-          } else {  // false
-            cxp[0] = "Kx";
-            cxp[1] = 1;
-            cxp[2] = ["I", void 0, void 0, void 0];
-          }
-          cxp[3] = void 0;
-          return [true, cxp, apps];
-        },
-        "number": () => {
-          // (s| s b0 b1 b2 b3 b4 b5 b6 b7)  unsigned 8 bit intenger
-          // => C (C (C (C (C (C (C (C I b0) b1) b2) b3) b4) b5) b6) b7
-          const i = ["I", void 0, void 0, void 0];
-          const k = ["K", 1, void 0, void 0];
-          const ki = ["Kx", 1, i, void 0];
-          let x = i;      // to become CXP
-          let n = input;  // integer
-          for (let c = 0; c < 8; ++c) {
-            x = ["Cxy", 1, x, ((n & 1) == 1) ? k : ki];
-            n >>= 1;
-          }
-          cxp[0] = x[0];
-          cxp[1] = x[1];
-          cxp[2] = x[2];
-          cxp[3] = x[3];
-          return [true, cxp, apps];
-        },
-        "string": () => {
-          const u8a = new TextEncoder().encode(input);
-          //cxp[0] = plus;
-          cxp[1] = [...u8a];  // convert it into an array
-          //cxp[2] = v0;
-          //cxp[3] = v1;
-          return [true, cxp, apps];
-        },
-        "object": () => ({
-          "[object Array]": () => {
-            //    [e0, e1, e2]
-            // => (f|x| f e0; f|x| f e1; f|x| e2; f|x| x)
-            // => B K (C (C I e0); B K; C (C I e1); B K; C (C I e2); K I)
-            if (input.length > 0) {
-              const [e0, ...rest] = input;
-              cxp[0] = "Bxy";
-              cxp[1] = 1;
-              cxp[2] = ["K", 1, void 0, void 0];
-              cxp[3] = [
-                "Cxy", 1, [
-                  "Cxy", 1, [
-                    "I", void 0, void 0, void 0
-                  ], [
-                    "+", e0, void 0, void 0
-                  ]
-                ], [
-                  "+", rest, void 0, void 0
-                ]
-              ];
-            } else {
-              cxp[0] = "Kx";
-              cxp[1] = 1;
-              cxp[2] = ["I", void 0, void 0, void 0];
-              cxp[3] = void 0;
-            }
-            return [true, cxp, apps];
-          }
-        }[toString.call(input)] ?? (() => [false, cxp, apps]))()
-      }[typeof input] ?? (() => [false, cxp, apps]))();
-    },
-    "-": () => [false, cxp, apps]  // sentinel to output
-  }[cxp[0]] ?? (() => [false, cxp, apps]))();
+const pushApp = (cxp, apps) => {  // cxp ["app", x, y, v0]
+  apps.push(cxp);
+  return [true, cxp[1], apps];
 };
-
+const reduceApp = (cxp, apps) => {
+  const [app, x, y, v0] = cxp;
+  return ({
+    "Sxy": () => {  // cxp ["app", x ["Sxy", n, xx, xy], y, v0]
+      // distribute y to both xx and xy
+      const [sxy, n, xx, xy] = x;
+      if (n >= 2) {
+        cxp[0] = sxy;
+        cxp[1] = n - 1;
+        cxp[2] = [app, xx, y, v0];
+        cxp[3] = [app, xy, y, v0];
+      } else {  // n == 1
+        //cxp[0] = app;
+        cxp[1] = [app, xx, y, v0];
+        cxp[2] = [app, xy, y, v0];
+        //cxp[3] = v0;
+      }
+      return [true, cxp, apps];
+    },
+    "Sx": () => {  // cxp ["app", x ["Sx", n, xx, v1], y, v0]
+      const [sx, n, xx, v1] = x;
+      cxp[0] = "Sxy";
+      cxp[1] = n;
+      cxp[2] = xx;
+      cxp[3] = y;
+      return [true, cxp, apps];
+    },
+    "S": () => {  // cxp ["app", x ["S", n, v1, v2], y, v0]
+      const [s, n, v1, v2] = x;
+      cxp[0] = "Sx";
+      cxp[1] = n;
+      cxp[2] = y;
+      //cxp[3] = v0;
+      return [true, cxp, apps];
+    },
+    "Cxy": () => {  // cxp ["app", x ["Cxy", n, xx, xy], y, v0]
+      // distribute y to xx only
+      const [cxy, n, xx, xy] = x;
+      if (n >= 2) {
+        cxp[0] = cxy;
+        cxp[1] = n - 1;
+        cxp[2] = [app, xx, y, v0];
+        cxp[3] = xy;
+      } else {  // n == 1
+        //cxp[0] = app;
+        cxp[1] = [app, xx, y, v0];
+        cxp[2] = xy;
+        //cxp[3] = v0;
+      }
+      return [true, cxp, apps];
+    },
+    "Cx": () => {  // cxp ["app", x ["Cx", n, xx, v1], y, v0]
+      const [cx, n, xx, v1] = x;
+      cxp[0] = "Cxy";
+      cxp[1] = n;
+      cxp[2] = xx;
+      cxp[3] = y;
+      return [true, cxp, apps];
+    },
+    "C": () => {  // cxp ["app", x ["C", n, v1, v2], y, v0]
+      const [c, n, v1, v2] = x;
+      cxp[0] = "Cx";
+      cxp[1] = n;
+      cxp[2] = y;
+      //cxp[3] = v0;
+      return [true, cxp, apps];
+    },
+    "Bxy": () => {  // cxp ["app", x ["Bxy", n, xx, xy], y, v0]
+      // distribute y to xy only
+      const [bxy, n, xx, xy] = x;
+      if (n >= 2) {
+        cxp[0] = bxy;
+        cxp[1] = n - 1;
+        cxp[2] = xx;
+        cxp[3] = [app, xy, y, v0];
+      } else {  // n == 1
+        //cxp[0] = app;
+        cxp[1] = xx;
+        cxp[2] = [app, xy, y, v0];
+        //cxp[3] = v0;
+      }
+      return [true, cxp, apps];
+    },
+    "Bx": () => {  // cxp ["app", x ["Bx", n, xx, v1], y, v0]
+      const [bx, n, xx, v1] = x;
+      cxp[0] = "Bxy";
+      cxp[1] = n;
+      cxp[2] = xx;
+      cxp[3] = y;
+      return [true, cxp, apps];
+    },
+    "B": () => {  // cxp ["app", x ["B", n, v1, v2], y, v0]
+      const [s, n, v1, v2] = x;
+      cxp[0] = "Bx";
+      cxp[1] = n;
+      cxp[2] = y;
+      //cxp[3] = v0;
+      return [true, cxp, apps];
+    },
+    "Kx": () => {  // cxp ["app", x ["Kx", n, xx, v1], y, v0]
+      // remove y
+      const [kx, n, xx, v1] = x;
+      if (n >= 2) {
+        cxp[0] = kx;
+        cxp[1] = n - 1;
+        cxp[2] = xx;
+        //cxp[3] = v0;
+      } else {  // n == 1
+        cxp[0] = xx[0];
+        cxp[1] = xx[1];
+        cxp[2] = xx[2];
+        cxp[3] = xx[3];
+      }
+      return [true, cxp, apps];
+    },
+    "K": () => {  // cxp ["app", x ["K", n, v1, v2], y, v0]
+      const [k, n, v1, v2] = x;
+      cxp[0] = "Kx";
+      cxp[1] = n;
+      cxp[2] = y;
+      //cxp[3] = v0;
+      return [true, cxp, apps];
+    },
+    "I": () => {  // cxp ["app", x ["I", v1, v2, v3], y, v0]
+      cxp[0] = y[0];
+      cxp[1] = y[1];
+      cxp[2] = y[2];
+      cxp[3] = y[3];
+      return [true, cxp, apps];
+    },
+    "app": () => pushApp(cxp, apps),
+    "var": () => pushApp(cxp, apps),
+    "()": () => pushApp(cxp, apps),
+    "+": () => pushApp(cxp, apps),
+    "-": () => pushApp(cxp, apps)
+  }[x[0]])();
+};  // reduceApp
+const reduceVar = (cxp, apps) => {  // cxp ["var", v, v0, v1]
+  const fn = library[cxp[1]];
+  if (fn !== void 0) {
+    const newCXP = cloneCXP(fn);
+    cxp[0] = newCXP[0];
+    cxp[1] = newCXP[1];
+    cxp[2] = newCXP[2];
+    cxp[3] = newCXP[3];
+    return [true, cxp, apps];
+  } else {
+    return [false, cxp, apps];  // undefined variable
+  }
+};
+const reduceInput = (cxp, apps) => {  // cxp ["+", input, v0, v1]
+  const [plus, input, v0, v1] = cxp;
+  return ({
+    "boolean": () => {
+      if (input) {  // true
+        cxp[0] = "K";
+        cxp[1] = 1;
+        cxp[2] = void 0;
+      } else {  // false
+        cxp[0] = "Kx";
+        cxp[1] = 1;
+        cxp[2] = ["I", void 0, void 0, void 0];
+      }
+      cxp[3] = void 0;
+      return [true, cxp, apps];
+    },
+    "number": () => {
+      // (s| s b0 b1 b2 b3 b4 b5 b6 b7)  unsigned 8 bit intenger
+      // => C (C (C (C (C (C (C (C I b0) b1) b2) b3) b4) b5) b6) b7
+      const i = ["I", void 0, void 0, void 0];
+      const k = ["K", 1, void 0, void 0];
+      const ki = ["Kx", 1, i, void 0];
+      let x = i;      // to become CXP
+      let n = input;  // integer
+      for (let c = 0; c < 8; ++c) {
+        x = ["Cxy", 1, x, ((n & 1) == 1) ? k : ki];
+        n >>= 1;
+      }
+      cxp[0] = x[0];
+      cxp[1] = x[1];
+      cxp[2] = x[2];
+      cxp[3] = x[3];
+      return [true, cxp, apps];
+    },
+    "string": () => {
+      const u8a = new TextEncoder().encode(input);
+      //cxp[0] = plus;
+      cxp[1] = [...u8a];  // convert it into an array
+      //cxp[2] = v0;
+      //cxp[3] = v1;
+      return [true, cxp, apps];
+    },
+    "object": () => ({
+      "[object Array]": () => {
+        //    [e0, e1, e2]
+        // => (f|x| f e0; f|x| f e1; f|x| e2; f|x| x)
+        // => B K (C (C I e0); B K; C (C I e1); B K; C (C I e2); K I)
+        if (input.length > 0) {
+          const [e0, ...rest] = input;
+          cxp[0] = "Bxy";
+          cxp[1] = 1;
+          cxp[2] = ["K", 1, void 0, void 0];
+          cxp[3] = [
+            "Cxy", 1, [
+              "Cxy", 1, [
+                "I", void 0, void 0, void 0
+              ], [
+                "+", e0, void 0, void 0
+              ]
+            ], [
+              "+", rest, void 0, void 0
+            ]
+          ];
+        } else {
+          cxp[0] = "Kx";
+          cxp[1] = 1;
+          cxp[2] = ["I", void 0, void 0, void 0];
+          cxp[3] = void 0;
+        }
+        return [true, cxp, apps];
+      }
+    }[toString.call(input)] ?? (() => [false, cxp, apps]))()
+  }[typeof input] ?? (() => [false, cxp, apps]))();
+};
+const popApp = (cxp, apps) => {
+  const newCXP = apps.pop();
+  if (newCXP !== void 0) {
+    if (newCXP[0] != "app" || newCXP[1] !== cxp)
+      throw new Error("inconsistent cxp at ReduceOne")
+    return reduceApp(newCXP, apps);
+  } else {
+    return [false, cxp, apps];  // insufficient arguments
+  }
+};
+const breakReduce = (cxp, apps) => [false, cxp, apps];
+const reduceOne = (cxp, apps) => ({  // reduce one step
+  "Sxy": popApp,
+  "Sx": popApp,
+  "S": popApp,
+  "Kx": popApp,
+  "K": popApp,
+  "Cxy": popApp,
+  "Cx": popApp,
+  "C": popApp,
+  "Bxy": popApp,
+  "Bx": popApp,
+  "B": popApp,
+  "I": popApp,
+  "app": reduceApp,
+  "var": reduceVar,
+  "()": breakReduce,  // reduce on placeholder
+  "+": reduceInput,
+  "-": breakReduce  // sentinel to output
+}[cxp[0]] ?? breakReduce)(cxp, apps);
 const reduceCXP = (cxpOrg) => {
   let [cont, cxp, apps] = reduceOne(cxpOrg, []);
   while (cont) {  // reduce loop
@@ -496,9 +494,25 @@ const nodesToText = (ns) => {
   return t;
 };
 
+const pastePlainText = (e) => {
+  const text = e.clipboardData.getData("text/plain");
+  const selection = window.getSelection();
+  selection.deleteFromDocument();
+  selection.getRangeAt(0).insertNode(document.createTextNode(text));
+  const range = selection.getRangeAt(0);
+  selection.setPosition(range.endContainer, range.endOffset);
+  e.preventDefault();
+};
+const elemCode = document.getElementById("code");
+elemCode.textContent = "";  //"         1         2         3         4         5         6\n123456789012345678901234567890123456789012345678901234567890";
+elemCode.addEventListener("paste", pastePlainText);
+const elemInput = document.getElementById("input");
+elemInput.textContent = "";
+elemInput.addEventListener("paste", pastePlainText);
+
 const updateOutput = () => {
-  const code = nodesToText(document.getElementById("code").childNodes);
-  const inputElem = nodesToText(document.getElementById("input").childNodes);
+  const code = nodesToText(elemCode.childNodes);
+  const inputElem = nodesToText(elemInput.childNodes);
 
   let data, input;
   try {
@@ -540,19 +554,54 @@ const updateOutput = () => {
   document.getElementById("output").textContent = data;
 };
 
-document.getElementById("code").textContent = "";  //"         1         2         3         4         5         6\n123456789012345678901234567890123456789012345678901234567890";
-document.getElementById("input").textContent = "";
-updateOutput();
-
 const obCode = new MutationObserver(mr => updateOutput());
-obCode.observe(document.getElementById("code"), {
+obCode.observe(elemCode, {
   childList: true,      // to observe the ENTER key
   characterData: true,  // and the other characters
   subtree: true
 });
 const obInput = new MutationObserver(mr => updateOutput());
-obInput.observe(document.getElementById("input"), {
+obInput.observe(elemInput, {
   childList: true,      // to observe the ENTER key
   characterData: true,  // and the other characters
   subtree: true
 });
+
+const elemJSON = document.getElementById('outputJSON');
+elemJSON.disabled = false;
+elemJSON.checked = outputJSON;
+elemJSON.addEventListener('click', () => {
+  outputJSON = elemJSON.checked;
+  updateOutput();
+});
+
+const elemCXP = document.getElementById('StringfyCXP');
+elemCXP.disabled = false;
+elemCXP.checked = StringfyCXP;
+elemCXP.addEventListener('click', () => {
+  StringfyCXP = elemCXP.checked;
+  updateOutput();
+});
+
+const elemStr = document.getElementById('outputStr');
+elemStr.disabled = false;
+elemStr.checked = outputStr;
+elemStr.addEventListener('click', () => {
+  outputStr = elemStr.checked;
+  updateOutput();
+});
+
+const elemC = document.getElementById('compact');
+elemC.disabled = false;
+elemC.checked = compact;
+elemC.addEventListener('click', () => {
+  compact = elemC.checked;
+  updateOutput();
+});
+
+const elemCopy = document.getElementById('copyToClipboard');
+elemCopy.addEventListener('click', () => {
+  navigator.clipboard.writeText(document.getElementById("output").textContent);
+});
+
+updateOutput();
