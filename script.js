@@ -34,6 +34,32 @@
   );
 
 */
+/*
+//(a| a (ea|ra|f|x| f (ea inc8nc) ra) F)
+(C (C I (B3 K (B C (B (C I) (C I inc8nc))))) F)
+(B K (C (C I (C (C (C (C (C (C (C (C I K) (K I)) (K I)) (K I)) (K I)) (K I)) K) (K I))) (K I)))
+
+
+
+
+//(ea|ra|f|x| f (ea inc8nc) ra)
+(B3 K (B C (B (C I) (C I inc8nc))))
+(C (C (C (C (C (C (C (C I K) (K I)) (K I)) (K I)) (K I)) (K I)) K) (K I))
+F
+
+
+
+T[ea|ra|f|x| f (ea inc8nc) ra] ?=> (B3 K (B C (B (C I) (C I inc8nc))))
+
+inc8nc = (x0|x1|x2|x3|x4|x5|x6|x7|
+  inc8 x0 x1 x2 x3 x4 x5 x6 x7 F; r0|r1|r2|r3|r4|r5|r6|r7|c|
+  s| s r0 r1 r2 r3 r4 r5 r6 r7
+);
+
+
+*/
+
+"use strict";
 import { intrinsic } from 'https://saki-la.github.io/saki-play/intrinsic.js';
 import { parse } from 'https://saki-la.github.io/saki-play/sakiMin.pegjs.js';
 import { pegToLXP } from 'https://saki-la.github.io/saki-play/PEGToLXP.js';
@@ -46,6 +72,7 @@ let compact = true;  // whether the output is compacted
 
 const library = Object.assign(intrinsic, {
   // sub2 F F F F F (r0|r1|b| f|x| f r0; f|x| f r1; f|x| f b; f|x| x)
+  "inc8nc": ["Cxy",8,["Cxy",8,["var","inc8"],["var","T"]],["Bxy",8,["K",1],["Bxy",7,["C",1],["Bxy",6,["C",1],["Bxy",5,["C",1],["Bxy",4,["C",1],["Bxy",3,["C",1],["Bxy",2,["C",1],["Bxy",1,["C",1],["Cx",1,["I"]]]]]]]]]]]
 });
 
 const cloneCXP = (cxp) => ({
@@ -247,7 +274,8 @@ const reduceApp = (cxp, apps) => {
   }[x[0]])();
 };  // reduceApp
 const reduceVar = (cxp, apps) => {  // cxp ["var", v, v0, v1]
-  const fn = library[cxp[1]];
+  const v = cxp[1];
+  const fn = library[v];
   if (fn !== void 0) {
     const newCXP = cloneCXP(fn);
     cxp[0] = newCXP[0];
@@ -256,7 +284,23 @@ const reduceVar = (cxp, apps) => {  // cxp ["var", v, v0, v1]
     cxp[3] = newCXP[3];
     return [true, cxp, apps];
   } else {
-    return [false, cxp, apps];  // undefined variable
+    const comb = (v.match(/^[SKCB]/) ?? [null])[0];
+    const n = (v.slice(1).match(/^[0-9]+/) ?? [null])[0];
+    if (comb) {
+      cxp[0] = comb;
+      cxp[1] = n ? +n : 1;
+      cxp[2] = void 0;
+      cxp[3] = void 0;
+      return [true, cxp, apps];
+    } else if (v == "I") {
+      cxp[0] = "I";
+      cxp[1] = void 0;
+      cxp[2] = void 0;
+      cxp[3] = void 0;
+      return [true, cxp, apps];
+    } else {
+      return [false, cxp, apps];  // undefined variable
+    }
   }
 };
 const reduceInput = (cxp, apps) => {  // cxp ["+", input, v0, v1]
@@ -373,7 +417,7 @@ const reduceCXP = (cxpOrg) => {
 }
 
 const toStr = (json) => {
-  if (toString.call(json) == "[object Array]" &&
+  if (outputStr && toString.call(json) == "[object Array]" &&
 
       json.reduce((a, e) => a && typeof e == "number", true)) {
     const u8a = new Uint8Array(json);
@@ -495,12 +539,60 @@ const nodesToText = (ns) => {
 };
 
 const pastePlainText = (e) => {
-  const text = e.clipboardData.getData("text/plain");
+  let text = e.clipboardData.getData("text/plain");
   const selection = window.getSelection();
   selection.deleteFromDocument();
-  selection.getRangeAt(0).insertNode(document.createTextNode(text));
   const range = selection.getRangeAt(0);
-  selection.setPosition(range.endContainer, range.endOffset);
+  let nodeIns = range.startContainer;  // node to insert text
+  let offsetIns = range.startOffset;  // offset to insert text in case of text node
+  let textRemain = void 0;
+  while (text.length > 0) {
+    const line = (text.match(/^[^\r\n]+/) ?? [""])[0];
+    if (line.length > 0) {
+      if (nodeIns.nodeType == Node.TEXT_NODE) {
+        const nodeText = nodeIns.textContent;
+        if (textRemain === void 0)
+          textRemain = nodeText.slice(offsetIns);
+        const newText = nodeText.slice(0, offsetIns).concat(line);
+        nodeIns.textContent = newText;
+        offsetIns = newText.length;
+      } else {
+        const newNode = document.createTextNode(line);
+        if (nodeIns.nodeName.toLowerCase() == "pre")
+          nodeIns.appendChild(newNode);
+        else
+          nodeIns.parentNode.insertBefore(newNode, nodeIns.nextSibling);
+        nodeIns = newNode;
+        offsetIns = line.length;
+        if (textRemain === void 0)
+          textRemain = "";
+      }
+      text = text.slice(line.length);
+    }
+    const cr = (text.match(/^(\r\n|\n|\r)/) ?? [""])[0];
+    if (cr.length > 0) {
+      const newNode = document.createElement("br");
+      nodeIns.parentNode.insertBefore(newNode, nodeIns.nextSibling);
+      nodeIns = newNode;
+      if (textRemain === void 0)
+          textRemain = "";
+      text = text.slice(cr.length);
+    }
+  }
+  if (textRemain !== void 0 && textRemain.length > 0) {
+    if (nodeIns.nodeType == Node.TEXT_NODE) {
+      const nodeText = nodeIns.textContent;
+      const newText = nodeText.slice(0, offsetIns).concat(textRemain);
+      nodeIns.textContent = newText;
+      offsetIns = newText.length;
+    } else {
+      const newNode = document.createTextNode(textRemain);
+      nodeIns.parentNode.insertBefore(newNode, nodeIns.nextSibling);
+      nodeIns = newNode;
+      offsetIns = textRemain.length;
+    }
+  }
+  selection.setPosition(nodeIns, offsetIns);
   e.preventDefault();
 };
 const elemCode = document.getElementById("code");
