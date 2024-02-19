@@ -22,7 +22,7 @@
   ["var", "varName"]
   ["()"]
 */
-const compact = true; // whether the output is compacted
+//const compact = true; // whether the output is compacted
 const addVFree = (lxp) => ({
     "lam": () => {
         const v = lxp[1];
@@ -202,6 +202,7 @@ const removeVFree = (cxp) => {
     }[cxp[1]])();
 };
 export const LXPtoCXP = (lxp) => removeVFree(toCXP(addVFree(lxp)));
+/*
 const nodeToText = (nd) => {
     switch (nd.nodeName.toLowerCase()) {
         case "#text":
@@ -259,3 +260,4 @@ obInput.observe(document.getElementById("input"), {
     characterData: true,
     subtree: true
 });
+*/
