@@ -25,39 +25,6 @@
   (f|x| f 65; f|x| f 66; f|x| f 67; f|x| x) <-> text ABC
   (f|x| f (x|y| y); f|x| f 66; f|x| f 67; f|x| x) <-> JSON array [false, 66, 67]
   (f|x| f (x|y| y); f|x| f (f|x| f 66; f|x| f 67; f|x| x); f|x| x) <-> JSON array [false, "BC"]
-
-
-  sub2 x^B2 y^B2 b0^CB)^[B2,CB] := (
-    [l,b1] = sub1 x[0] y[0] b0;
-    [u,b2] = sub1 x[1] y[1] b1;
-    [[l,u], b2]
-  );
-
-*/
-/*
-//(a| a (ea|ra|f|x| f (ea inc8nc) ra) F)
-(C (C I (B3 K (B C (B (C I) (C I inc8nc))))) F)
-(B K (C (C I (C (C (C (C (C (C (C (C I K) (K I)) (K I)) (K I)) (K I)) (K I)) K) (K I))) (K I)))
-
-
-
-
-//(ea|ra|f|x| f (ea inc8nc) ra)
-(B3 K (B C (B (C I) (C I inc8nc))))
-(C (C (C (C (C (C (C (C I K) (K I)) (K I)) (K I)) (K I)) (K I)) K) (K I))
-F
-
-
-
-T[ea|ra|f|x| f (ea inc8nc) ra] ?=> (B3 K (B C (B (C I) (C I inc8nc))))
-
-inc8nc = (x0|x1|x2|x3|x4|x5|x6|x7|
-  inc8 x0 x1 x2 x3 x4 x5 x6 x7 F; r0|r1|r2|r3|r4|r5|r6|r7|c|
-  s| s r0 r1 r2 r3 r4 r5 r6 r7
-);
-
-(B Y (C3 (B3 S (B2 (C B) (C5 (B2 (C B) (S (B B (B S (B2 B (B2 S (B3 B (C3 I T)))))) (B C (B2 B (B2 C (B3 B (C3 C F))))))) F))) (C (C I (K2 T)) F))) lt8
-
 */
 
 "use strict";
@@ -67,16 +34,16 @@ import { pegToLXP } from 'https://saki-la.github.io/saki-play/PEGToLXP.js';
 import { LXPtoCXP } from 'https://saki-la.github.io/saki-play/LXPtoCXP.js';
 
 let outputJSON = true;
-let StringfyCXP = false;
+let StringfyCXP = true;
 let outputStr = true;
 let compact = true;  // whether the output is compacted
 let nextCXP = void 0;  // debug mode if undefined
+let debugEachVar = false;  // stop at each variable on top (otherwise stop at each reduction)
 
 const library = Object.assign(intrinsic, {
   // sub2 F F F F F (r0|r1|b| f|x| f r0; f|x| f r1; f|x| f b; f|x| x)
   "inc8nc": ["Cxy",8,["Cxy",8,["var","inc8"],["var","T"]],["Bxy",8,["K",1],["Bxy",7,["C",1],["Bxy",6,["C",1],["Bxy",5,["C",1],["Bxy",4,["C",1],["Bxy",3,["C",1],["Bxy",2,["C",1],["Bxy",1,["C",1],["Cx",1,["I"]]]]]]]]]]],
-  "ltAry": ["Cxy",1,["app",["app",["Bxy",3,["S",1],["Bxy",2,["Cx",1,["B",1]],["Cxy",5,["Bxy",2,["Cx",1,["B",2]],["Sxy",1,["Bxy",1,["B",1],["Bxy",1,["S",1],["Bxy",2,["B",1],["Bxy",2,["S",1],["Bxy",3,["B",1],["Cxy",3,["Bxy",2,["Cx",1,["I"]],["Cx",1,["I"]]],["var","T"]]]]]]],["Bxy",1,["C",1],["Bxy",2,["B",1],["Bxy",2,["C",1],["Bxy",3,["B",1],["Cxy",3,["Bxy",1,["Cx",1,["B",1]],["Cx",1,["I"]]],["var","F"]]]]]]]],["var","F"]]]],["app",["app",["var","B"],["var","K"]],["app",["app",["var","C"],["app",["app",["var","C"],["var","I"]],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["var","I"]],["var","K"]]],["app",["var","K"],["var","I"]]]],["app",["var","K"],["var","I"]]]],["app",["var","K"],["var","I"]]]],["app",["var","K"],["var","I"]]]],["app",["var","K"],["var","I"]]]],["var","K"]]],["app",["var","K"],["var","I"]]]]],["app",["var","K"],["var","I"]]]]],["app",["Sxy",1,["I"],["I"]],["app",["I"],["app",["Cxy",1,["B",1],["Sxy",1,["I"],["I"]]],["Cxy",2,["app",["Bxy",3,["S",1],["Bxy",2,["Cx",1,["B",1]],["Cxy",5,["Bxy",2,["Cx",1,["B",2]],["Sxy",1,["Bxy",1,["B",1],["Bxy",1,["S",1],["Bxy",2,["B",1],["Bxy",2,["S",1],["Bxy",3,["B",1],["Cxy",3,["Bxy",2,["Cx",1,["I"]],["Cx",1,["I"]]],["var","T"]]]]]]],["Bxy",1,["C",1],["Bxy",2,["B",1],["Bxy",2,["C",1],["Bxy",3,["B",1],["Cxy",3,["Bxy",1,["Cx",1,["B",1]],["Cx",1,["I"]]],["var","F"]]]]]]]],["var","F"]]]],["app",["app",["var","B"],["var","K"]],["app",["app",["var","C"],["app",["app",["var","C"],["var","I"]],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["var","I"]],["var","K"]]],["app",["var","K"],["var","I"]]]],["app",["var","K"],["var","I"]]]],["app",["var","K"],["var","I"]]]],["app",["var","K"],["var","I"]]]],["app",["var","K"],["var","I"]]]],["var","K"]]],["app",["var","K"],["var","I"]]]]],["app",["var","K"],["var","I"]]]]],["Cxy",1,["Cxy",1,["I"],["Kx",2,["var","T"]]],["var","F"]]]]]]],["Cxy",1,["Cxy",1,["I"],["Kx",2,["var","T"]]],["var","F"]]],
-  "pine": ["Bxy",1,["K",1],["Cxy",1,["Cxy",1,["I"],["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["I"],["Kx",1,["I"]]],["Kx",1,["I"]]],["Kx",1,["I"]]],["Kx",1,["I"]]],["K",1]],["K",1]],["K",1]],["Kx",1,["I"]]]],["Bxy",1,["K",1],["Cxy",1,["Cxy",1,["I"],["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["I"],["K",1]],["Kx",1,["I"]]],["Kx",1,["I"]]],["K",1]],["Kx",1,["I"]]],["K",1]],["K",1]],["Kx",1,["I"]]]],["Bxy",1,["K",1],["Cxy",1,["Cxy",1,["I"],["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["I"],["Kx",1,["I"]]],["K",1]],["K",1]],["K",1]],["Kx",1,["I"]]],["K",1]],["K",1]],["Kx",1,["I"]]]],["Bxy",1,["K",1],["Cxy",1,["Cxy",1,["I"],["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["I"],["K",1]],["Kx",1,["I"]]],["K",1]],["Kx",1,["I"]]],["Kx",1,["I"]]],["K",1]],["K",1]],["Kx",1,["I"]]]],["Kx",1,["I"]]]]]]]]]]
+
 });
 
 const cloneCXP = (cxp) => ({
@@ -413,18 +380,24 @@ const reduceOne = (cxp, apps) => ({  // reduce one step
 }[cxp[0]] ?? breakReduce)(cxp, apps);
 
 const reduceCXP = (cxpOrg, external = false) => {
+  let varFound = (cxpOrg[0] == "var");
   let [cont, cxp, apps] = reduceOne(cxpOrg, []);
   while (cont) {  // reduce loop
-    //document.getElementById("output").textContent = JSON.stringify(cxp, null, 2);
-    [cont, cxp, apps] = reduceOne(cxp, apps);
     // break at the variable in external code when debug mode
-    if (external && cont && nextCXP !== void 0 && cxp[0] == "var") {
-      nextCXP = cxpOrg;  // at the next time continue it
-      return;
+    if (external && nextCXP !== void 0 && cxp[0] == "var") {
+      if (varFound) {  // reduced at the 
+        nextCXP = cxpOrg;  // at the next time continue it
+        break;
+      } else {
+        // now returned to the last state
+        varFound = true;
+      }
     }
+    [cont, cxp, apps] = reduceOne(cxp, apps);
   }
-  if (!cont)
+  if (external && !cont)
     nextCXP = void 0;  // end debug mode
+  return [cxp, apps];
 }
 
 const toStr = (json) => {
@@ -507,7 +480,6 @@ const CXPtoJSON = (cxp) => {  // convert CXP to JSON (or returns void 0)
 };
 
 const getOutputData = (cxp) => {  // generate output data
-  reduceCXP(cxp, true);  // reduce external code (subject to debugging)
   if (outputJSON) {
     const json = toStr(CXPtoJSON(removeVoid(cxp)));
     if (json !== void 0)
@@ -601,6 +573,7 @@ const pastePlainText = (e) => {
   selection.setPosition(nodeIns, offsetIns);
   e.preventDefault();
 };
+
 const elemCode = document.getElementById("code");
 elemCode.textContent = "";  //"         1         2         3         4         5         6\n123456789012345678901234567890123456789012345678901234567890";
 elemCode.addEventListener("paste", pastePlainText);
@@ -610,6 +583,14 @@ elemInput.addEventListener("paste", pastePlainText);
 const elemInput2 = document.getElementById("input2");
 elemInput.textContent = "";
 elemInput.addEventListener("paste", pastePlainText);
+const elemOutput = document.getElementById("output");
+const elemJSON = document.getElementById('outputJSON');
+const elemCXP = document.getElementById('StringfyCXP');
+const elemStr = document.getElementById('outputStr');
+const elemC = document.getElementById('compact');
+const elemNext = document.getElementById('reduceNext');
+const elemReset = document.getElementById('reduceReset');
+const elemCopy = document.getElementById('copyToClipboard');
 
 const updateOutput = (debug = false) => {
   let data;
@@ -651,7 +632,7 @@ const updateOutput = (debug = false) => {
       }
     }
     if (data !== void 0) {
-      try {
+      //try {
         const cxp = (!(!input) || input === false) ? (  // cxp to reduce
           (!(!input2) || input2 === false) ? [
             "app", [
@@ -671,19 +652,23 @@ const updateOutput = (debug = false) => {
         ) : cloneCXP(data);  // no input if input is not given
         if (debug)
           nextCXP = cxp;  // enter debug mode
+        else
+          reduceCXP(cxp, true);  // reduce external code (subject to debugging)
         data = getOutputData(cxp);
-      } catch {
-        data = void 0;
-        nextCXP = void 0;
-      }
+      //} catch {
+      //  data = void 0;
+      //  nextCXP = void 0;
+      //}
     }
   } else {  // nextCXP !== void 0
-    try {
-      data = getOutputData(nextCXP);
-    } catch {
-      data = void 0;
-      nextCXP = void 0;
-    }
+    //try {
+      const cxp = nextCXP;
+      reduceCXP(cxp, true);  // reduce external code (subject to debugging)
+      data = getOutputData(cxp);
+    //} catch {
+    //  data = void 0;
+    //  nextCXP = void 0;
+    //}
   }
   if (data === void 0) {
     data = "(no output)";
@@ -694,8 +679,10 @@ const updateOutput = (debug = false) => {
       data = JSON.stringify(data, null, 2);
     }
   }
-  document.getElementById("output").textContent = data;
-};
+  elemOutput.textContent = data;
+  elemReset.disabled = (nextCXP === void 0);
+  elemNext.textContent = (nextCXP === void 0) ? "Debug" : "Next";
+};  // updateOutput
 
 const obCode = new MutationObserver(mr => updateOutput());
 obCode.observe(elemCode, {
@@ -716,7 +703,6 @@ obInput2.observe(elemInput2, {
   subtree: true
 });
 
-const elemJSON = document.getElementById('outputJSON');
 elemJSON.disabled = false;
 elemJSON.checked = outputJSON;
 elemJSON.addEventListener('click', () => {
@@ -724,7 +710,6 @@ elemJSON.addEventListener('click', () => {
   updateOutput();
 });
 
-const elemCXP = document.getElementById('StringfyCXP');
 elemCXP.disabled = false;
 elemCXP.checked = StringfyCXP;
 elemCXP.addEventListener('click', () => {
@@ -732,15 +717,12 @@ elemCXP.addEventListener('click', () => {
   updateOutput();
 });
 
-const elemStr = document.getElementById('outputStr');
 elemStr.disabled = false;
 elemStr.checked = outputStr;
 elemStr.addEventListener('click', () => {
   outputStr = elemStr.checked;
   updateOutput();
 });
-
-const elemC = document.getElementById('compact');
 elemC.disabled = false;
 elemC.checked = compact;
 elemC.addEventListener('click', () => {
@@ -748,18 +730,13 @@ elemC.addEventListener('click', () => {
   updateOutput();
 });
 
-const elemNext = document.getElementById('reduceNext');
 elemNext.addEventListener('click', () => {
   updateOutput(true);  // debug mode
 });
-
-const elemReset = document.getElementById('reduceReset');
 elemReset.addEventListener('click', () => {
   nextCXP = void 0;  // end debug mode
   updateOutput();
 });
-
-const elemCopy = document.getElementById('copyToClipboard');
 elemCopy.addEventListener('click', () => {  navigator.clipboard.writeText(document.getElementById("output").textContent);
 });
 
