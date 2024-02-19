@@ -33,9 +33,9 @@ import { parse } from 'https://saki-la.github.io/saki-play/sakiMin.pegjs.js';
 import { pegToLXP } from 'https://saki-la.github.io/saki-play/PEGToLXP.js';
 import { LXPtoCXP } from 'https://saki-la.github.io/saki-play/LXPtoCXP.js';
 
-let outputJSON = true;
-let StringfyCXP = true;
-let outputStr = true;
+let outputJSON = true;  // output in JSON representation
+let outputComb = true;  // output in combinator representation
+let outputStr = true;   // output as string
 let compact = true;  // whether the output is compacted
 let nextCXP = void 0;  // debug mode if undefined
 let debugEachVar = false;  // stop at each variable on top (otherwise stop at each reduction)
@@ -479,17 +479,21 @@ const CXPtoJSON = (cxp) => {  // convert CXP to JSON (or returns void 0)
   return void 0;
 };
 
-const getOutputData = (cxp) => {  // generate output data
+const stringifyComb = (cxp) => {  // stringify CXP in combinator form
+  if (outputComb) {
+    return CXPtoStr(removeVoid(cxp));
+  } else {
+    return removeVoid(cxp);
+  }
+};
+
+const stringifyJSON = (cxp) => {  // stringify CXP in JSON
   if (outputJSON) {
     const json = toStr(CXPtoJSON(removeVoid(cxp)));
     if (json !== void 0)
       return json;
   }
-  if (StringfyCXP) {
-    return CXPtoStr(removeVoid(cxp));
-  } else {
-    return removeVoid(cxp);
-  }
+  return stringifyComb(cxp);
 };
 
 const nodeToText = (nd) => {
@@ -650,11 +654,13 @@ const updateOutput = (debug = false) => {
             void 0
           ]
         ) : cloneCXP(data);  // no input if input is not given
-        if (debug)
+        if (debug) {
           nextCXP = cxp;  // enter debug mode
-        else
+          data = stringifyComb(cxp);
+        } else {
           reduceCXP(cxp, true);  // reduce external code (subject to debugging)
-        data = getOutputData(cxp);
+          data = stringifyJSON(cxp);
+        }
       //} catch {
       //  data = void 0;
       //  nextCXP = void 0;
@@ -664,7 +670,11 @@ const updateOutput = (debug = false) => {
     //try {
       const cxp = nextCXP;
       reduceCXP(cxp, true);  // reduce external code (subject to debugging)
-      data = getOutputData(cxp);
+      if (nextCXP !== void 0) {  // middle of debugging
+        data = stringifyComb(cxp);
+      } else {  // finished debugging
+        data = stringifyJSON(cxp);
+      }
     //} catch {
     //  data = void 0;
     //  nextCXP = void 0;
@@ -711,9 +721,9 @@ elemJSON.addEventListener('click', () => {
 });
 
 elemCXP.disabled = false;
-elemCXP.checked = StringfyCXP;
+elemCXP.checked = outputComb;
 elemCXP.addEventListener('click', () => {
-  StringfyCXP = elemCXP.checked;
+  outputComb = elemCXP.checked;
   updateOutput();
 });
 
