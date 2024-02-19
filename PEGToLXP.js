@@ -75,7 +75,7 @@ const exprToLXP = (expr) => {
             "x": () => exprToLXP(ea[1]),
             "sp": () => xa,
             "": () => xa // literals; "(" or ")"
-        })[ea[0]](), ["()"]).concat(["paren"]) // no expression allowed
+        })[ea[0]](), ["()"]).concat(["paren"]) // expression can be omitted
         ),
         "ident": () => {
             const v = et[1].reduce((vi, ei) => (vi.concat(ei[0] == "" ? ei[1] : "")), "");
@@ -88,10 +88,11 @@ const exprToLXP = (expr) => {
     return ft();
 };
 export const pegToLXP = (peg) => (peg.reduce((xt, et) => ({
-    "main": () => exprToLXP(et[1]),
-    "sp": () => xt
-})[et[0]](), ["()"]).concat(["main"]) // no expression allowed
-);
+  "main": () => exprToLXP(et[1]),
+  "sp": () => xt
+})[et[0]](), ["()"]).concat(["main"])); // expression can be omitted
+
+/*
 const nodeToText = (nd) => {
     switch (nd.nodeName.toLowerCase()) {
         case "#text":
@@ -142,3 +143,4 @@ obInput.observe(document.getElementById("input"), {
     characterData: true,
     subtree: true
 });
+*/
