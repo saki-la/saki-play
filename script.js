@@ -56,6 +56,7 @@ inc8nc = (x0|x1|x2|x3|x4|x5|x6|x7|
   s| s r0 r1 r2 r3 r4 r5 r6 r7
 );
 
+(B Y (C3 (B3 S (B2 (C B) (C5 (B2 (C B) (S (B B (B S (B2 B (B2 S (B3 B (C3 I T)))))) (B C (B2 B (B2 C (B3 B (C3 C F))))))) F))) (C (C I (K2 T)) F))) lt8
 
 */
 
@@ -69,10 +70,13 @@ let outputJSON = true;
 let StringfyCXP = false;
 let outputStr = true;
 let compact = true;  // whether the output is compacted
+let nextCXP = void 0;  // debug mode if undefined
 
 const library = Object.assign(intrinsic, {
   // sub2 F F F F F (r0|r1|b| f|x| f r0; f|x| f r1; f|x| f b; f|x| x)
-  "inc8nc": ["Cxy",8,["Cxy",8,["var","inc8"],["var","T"]],["Bxy",8,["K",1],["Bxy",7,["C",1],["Bxy",6,["C",1],["Bxy",5,["C",1],["Bxy",4,["C",1],["Bxy",3,["C",1],["Bxy",2,["C",1],["Bxy",1,["C",1],["Cx",1,["I"]]]]]]]]]]]
+  "inc8nc": ["Cxy",8,["Cxy",8,["var","inc8"],["var","T"]],["Bxy",8,["K",1],["Bxy",7,["C",1],["Bxy",6,["C",1],["Bxy",5,["C",1],["Bxy",4,["C",1],["Bxy",3,["C",1],["Bxy",2,["C",1],["Bxy",1,["C",1],["Cx",1,["I"]]]]]]]]]]],
+  "ltAry": ["Cxy",1,["app",["app",["Bxy",3,["S",1],["Bxy",2,["Cx",1,["B",1]],["Cxy",5,["Bxy",2,["Cx",1,["B",2]],["Sxy",1,["Bxy",1,["B",1],["Bxy",1,["S",1],["Bxy",2,["B",1],["Bxy",2,["S",1],["Bxy",3,["B",1],["Cxy",3,["Bxy",2,["Cx",1,["I"]],["Cx",1,["I"]]],["var","T"]]]]]]],["Bxy",1,["C",1],["Bxy",2,["B",1],["Bxy",2,["C",1],["Bxy",3,["B",1],["Cxy",3,["Bxy",1,["Cx",1,["B",1]],["Cx",1,["I"]]],["var","F"]]]]]]]],["var","F"]]]],["app",["app",["var","B"],["var","K"]],["app",["app",["var","C"],["app",["app",["var","C"],["var","I"]],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["var","I"]],["var","K"]]],["app",["var","K"],["var","I"]]]],["app",["var","K"],["var","I"]]]],["app",["var","K"],["var","I"]]]],["app",["var","K"],["var","I"]]]],["app",["var","K"],["var","I"]]]],["var","K"]]],["app",["var","K"],["var","I"]]]]],["app",["var","K"],["var","I"]]]]],["app",["Sxy",1,["I"],["I"]],["app",["I"],["app",["Cxy",1,["B",1],["Sxy",1,["I"],["I"]]],["Cxy",2,["app",["Bxy",3,["S",1],["Bxy",2,["Cx",1,["B",1]],["Cxy",5,["Bxy",2,["Cx",1,["B",2]],["Sxy",1,["Bxy",1,["B",1],["Bxy",1,["S",1],["Bxy",2,["B",1],["Bxy",2,["S",1],["Bxy",3,["B",1],["Cxy",3,["Bxy",2,["Cx",1,["I"]],["Cx",1,["I"]]],["var","T"]]]]]]],["Bxy",1,["C",1],["Bxy",2,["B",1],["Bxy",2,["C",1],["Bxy",3,["B",1],["Cxy",3,["Bxy",1,["Cx",1,["B",1]],["Cx",1,["I"]]],["var","F"]]]]]]]],["var","F"]]]],["app",["app",["var","B"],["var","K"]],["app",["app",["var","C"],["app",["app",["var","C"],["var","I"]],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["app",["app",["var","C"],["var","I"]],["var","K"]]],["app",["var","K"],["var","I"]]]],["app",["var","K"],["var","I"]]]],["app",["var","K"],["var","I"]]]],["app",["var","K"],["var","I"]]]],["app",["var","K"],["var","I"]]]],["var","K"]]],["app",["var","K"],["var","I"]]]]],["app",["var","K"],["var","I"]]]]],["Cxy",1,["Cxy",1,["I"],["Kx",2,["var","T"]]],["var","F"]]]]]]],["Cxy",1,["Cxy",1,["I"],["Kx",2,["var","T"]]],["var","F"]]],
+  "pine": ["Bxy",1,["K",1],["Cxy",1,["Cxy",1,["I"],["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["I"],["Kx",1,["I"]]],["Kx",1,["I"]]],["Kx",1,["I"]]],["Kx",1,["I"]]],["K",1]],["K",1]],["K",1]],["Kx",1,["I"]]]],["Bxy",1,["K",1],["Cxy",1,["Cxy",1,["I"],["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["I"],["K",1]],["Kx",1,["I"]]],["Kx",1,["I"]]],["K",1]],["Kx",1,["I"]]],["K",1]],["K",1]],["Kx",1,["I"]]]],["Bxy",1,["K",1],["Cxy",1,["Cxy",1,["I"],["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["I"],["Kx",1,["I"]]],["K",1]],["K",1]],["K",1]],["Kx",1,["I"]]],["K",1]],["K",1]],["Kx",1,["I"]]]],["Bxy",1,["K",1],["Cxy",1,["Cxy",1,["I"],["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["Cxy",1,["I"],["K",1]],["Kx",1,["I"]]],["K",1]],["Kx",1,["I"]]],["Kx",1,["I"]]],["K",1]],["K",1]],["Kx",1,["I"]]]],["Kx",1,["I"]]]]]]]]]]
 });
 
 const cloneCXP = (cxp) => ({
@@ -109,7 +113,7 @@ const removeVoid = (cxp) => ({
   "var": () => ["var", cxp[1]].concat(cxp.slice(4)),
   "()": () => ["()"].concat(cxp.slice(4)),
   "+": () => {  // sentinel to input
-    reduceCXP(cxp);
+    reduceCXP(cxp);  // internal for input
     return removeVoid(cxp);
   }
 }[cxp[0]])();
@@ -407,13 +411,20 @@ const reduceOne = (cxp, apps) => ({  // reduce one step
   "+": reduceInput,
   "-": breakReduce  // sentinel to output
 }[cxp[0]] ?? breakReduce)(cxp, apps);
-const reduceCXP = (cxpOrg) => {
+
+const reduceCXP = (cxpOrg, external = false) => {
   let [cont, cxp, apps] = reduceOne(cxpOrg, []);
   while (cont) {  // reduce loop
     //document.getElementById("output").textContent = JSON.stringify(cxp, null, 2);
     [cont, cxp, apps] = reduceOne(cxp, apps);
+    // break at the variable in external code when debug mode
+    if (external && cont && nextCXP !== void 0 && cxp[0] == "var") {
+      nextCXP = cxpOrg;  // at the next time continue it
+      return;
+    }
   }
-  return [cxp, apps];
+  if (!cont)
+    nextCXP = void 0;  // end debug mode
 }
 
 const toStr = (json) => {
@@ -433,7 +444,7 @@ const CXPtoJSON = (cxp) => {  // convert CXP to JSON (or returns void 0)
   cxp[0] = "app";
   cxp[2] = ["-", true, void 0, void 0],  // sentinel to output true (boolean)
   cxp[3] = void 0;
-  let [[sentl, sentlData], apps] = reduceCXP(cxp);
+  let [[sentl, sentlData], apps] = reduceCXP(cxp);  // internal for output
 
   // first check whether it is a number such as:
   //   (s| s K (K I) (K I) (K I) (K I) (K I) K (K I))
@@ -443,7 +454,8 @@ const CXPtoJSON = (cxp) => {  // convert CXP to JSON (or returns void 0)
     let u8 = 0;  // unsigned 8 bits integer
     let bc = 0;
     for (let c = cxp; c[0] == "app"; c = c[1], ++bc) {
-      const [[sl, sld], ap] = reduceCXP([
+      const [[sl, sld], ap] = reduceCXP([  // internal for output
+        
         "app", [
           "app",
           cloneCXP(c[2]),
@@ -465,12 +477,12 @@ const CXPtoJSON = (cxp) => {  // convert CXP to JSON (or returns void 0)
     }
   }
 
-  // give another sentinel to check
+  // give another sentinel to check boolean or array
   cxp[1] = [...cxp];
   cxp[0] = "app";
   cxp[2] = ["-", false, void 0, void 0],  // sentinel to output false
   cxp[3] = void 0;
-  [[sentl, sentlData], apps] = reduceCXP(cxp);
+  [[sentl, sentlData], apps] = reduceCXP(cxp);  // internal for output
 
   if (sentl == "-") {
     if (apps.length == 0) {  // boolean or an end of array (f|x| x)
@@ -494,14 +506,8 @@ const CXPtoJSON = (cxp) => {  // convert CXP to JSON (or returns void 0)
   return void 0;
 };
 
-const genOutputData = (cxpOrg, input) => {  // generate output data
-  const cxp = (!(!input) || input === false) ? [  // cxp to reduce
-    "app",
-    cloneCXP(cxpOrg),
-    ["+", input, void 0, void 0],  // sentinel to input
-    void 0
-  ] : cloneCXP(cxpOrg);  // no input if input is not given
-  reduceCXP(cxp);  // reduce without output
+const getOutputData = (cxp) => {  // generate output data
+  reduceCXP(cxp, true);  // reduce external code (subject to debugging)
   if (outputJSON) {
     const json = toStr(CXPtoJSON(removeVoid(cxp)));
     if (json !== void 0)
@@ -601,37 +607,82 @@ elemCode.addEventListener("paste", pastePlainText);
 const elemInput = document.getElementById("input");
 elemInput.textContent = "";
 elemInput.addEventListener("paste", pastePlainText);
+const elemInput2 = document.getElementById("input2");
+elemInput.textContent = "";
+elemInput.addEventListener("paste", pastePlainText);
 
-const updateOutput = () => {
-  const code = nodesToText(elemCode.childNodes);
-  const inputElem = nodesToText(elemInput.childNodes);
-
-  let data, input;
-  try {
-    data = JSON.parse(code);
-  } catch {
+const updateOutput = (debug = false) => {
+  let data;
+  
+  if (!debug || nextCXP === void 0) {
+    const code = nodesToText(elemCode.childNodes);
+    const inputElem = nodesToText(elemInput.childNodes);
+    const input2Elem = nodesToText(elemInput2.childNodes);
+    let input, input2;
     try {
-      data = LXPtoCXP(pegToLXP(parse(code)));
+      data = JSON.parse(code);
     } catch {
-      data = void 0; // ignore input errors
+      try {
+        data = LXPtoCXP(pegToLXP(parse(code)));
+      } catch {
+        data = void 0; // ignore input errors
+      }
     }
-  }
-  try {
-    input = JSON.parse(inputElem);
-  } catch {
     try {
-      input = LXPtoCXP(pegToLXP(parse(inputElem)));
-      if (input[0] == "()")
-        input = void 0;
+      input = JSON.parse(inputElem);
     } catch {
-      input = void 0; // ignore input errors
+      try {
+        input = LXPtoCXP(pegToLXP(parse(inputElem)));
+        if (input[0] == "()")
+          input = void 0;
+      } catch {
+        input = void 0; // ignore input errors
+      }
     }
-  }
-  if (data !== void 0) {
     try {
-      data = genOutputData(data, input);
+      input2 = JSON.parse(input2Elem);
     } catch {
-      // ignore input errors
+      try {
+        input2 = LXPtoCXP(pegToLXP(parse(input2Elem)));
+        if (input2[0] == "()")
+          input2 = void 0;
+      } catch {
+        input2 = void 0; // ignore input errors
+      }
+    }
+    if (data !== void 0) {
+      try {
+        const cxp = (!(!input) || input === false) ? (  // cxp to reduce
+          (!(!input2) || input2 === false) ? [
+            "app", [
+              "app",
+              cloneCXP(data),
+              cloneCXP(input),
+              void 0
+            ],
+            cloneCXP(input2),
+            void 0
+          ] : [
+            "app",
+            cloneCXP(data),
+            cloneCXP(input),
+            void 0
+          ]
+        ) : cloneCXP(data);  // no input if input is not given
+        if (debug)
+          nextCXP = cxp;  // enter debug mode
+        data = getOutputData(cxp);
+      } catch {
+        data = void 0;
+        nextCXP = void 0;
+      }
+    }
+  } else {  // nextCXP !== void 0
+    try {
+      data = getOutputData(nextCXP);
+    } catch {
+      data = void 0;
+      nextCXP = void 0;
     }
   }
   if (data === void 0) {
@@ -654,6 +705,12 @@ obCode.observe(elemCode, {
 });
 const obInput = new MutationObserver(mr => updateOutput());
 obInput.observe(elemInput, {
+  childList: true,      // to observe the ENTER key
+  characterData: true,  // and the other characters
+  subtree: true
+});
+const obInput2 = new MutationObserver(mr => updateOutput());
+obInput2.observe(elemInput2, {
   childList: true,      // to observe the ENTER key
   characterData: true,  // and the other characters
   subtree: true
@@ -691,9 +748,19 @@ elemC.addEventListener('click', () => {
   updateOutput();
 });
 
+const elemNext = document.getElementById('reduceNext');
+elemNext.addEventListener('click', () => {
+  updateOutput(true);  // debug mode
+});
+
+const elemReset = document.getElementById('reduceReset');
+elemReset.addEventListener('click', () => {
+  nextCXP = void 0;  // end debug mode
+  updateOutput();
+});
+
 const elemCopy = document.getElementById('copyToClipboard');
-elemCopy.addEventListener('click', () => {
-  navigator.clipboard.writeText(document.getElementById("output").textContent);
+elemCopy.addEventListener('click', () => {  navigator.clipboard.writeText(document.getElementById("output").textContent);
 });
 
 updateOutput();
