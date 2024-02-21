@@ -148,7 +148,7 @@ function peg$parse(input, options) {
       peg$c4 = peg$classExpectation(["("], false, false),
       peg$c5 = /^[)]/,
       peg$c6 = peg$classExpectation([")"], false, false),
-      peg$c7 = function(s1, x, s2) { return ["paren",[["","("]].concat(s1?[s1]:[]).concat([["x",[x]]]).concat((s2?[s2]:[])).concat([["",")"]])]; },
+      peg$c7 = function(s1, x, s2) { return ["paren",[["","("]].concat(s1?[s1]:[]).concat(x?[["x",[x]]]:[]).concat((s2?[s2]:[])).concat([["",")"]])]; },
       peg$c8 = /^[|]/,
       peg$c9 = peg$classExpectation(["|"], false, false),
       peg$c10 = function(v, s1, s2, x) { return ["lambda", [v].concat(s1?[s1]:[]).concat([["","|"]]).concat(s2?[s2]:[]).concat([["x",[x]]])]; },
@@ -410,6 +410,9 @@ function peg$parse(input, options) {
       }
       if (s2 !== peg$FAILED) {
         s3 = peg$parseexpLm();
+        if (s3 === peg$FAILED) {
+          s3 = null;
+        }
         if (s3 !== peg$FAILED) {
           s4 = peg$parsesp();
           if (s4 === peg$FAILED) {
@@ -1056,10 +1059,7 @@ function peg$parse(input, options) {
   }
 }
 
-/*
 module.exports = {
   SyntaxError: peg$SyntaxError,
   parse:       peg$parse
 };
-*/
-export const parse = (input, options) => peg$parse(input, options);
