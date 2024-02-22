@@ -22,7 +22,8 @@
   ["var", "varName"]
   ["()"]
 */
-//const compact = true; // whether the output is compacted
+"use strict";
+const compact = true; // whether the output is compacted
 const addVFree = (lxp) => ({
     "lam": () => {
         const v = lxp[1];
