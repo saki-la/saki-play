@@ -34,19 +34,19 @@ import { pegToLXP } from 'https://saki-la.github.io/saki-play/PEGToLXP.js';
 import { LXPtoCXP } from 'https://saki-la.github.io/saki-play/LXPtoCXP.js';
 
 let outputJSON = true;  // output in JSON representation
-let outputComb = true;  // output in combinator representation
-let outputStr = true;   // output as string
-let compact = true;  // whether the output is compacted
+let outputComb = true;  // output in combinator form
+let outputStr = true;   // output as string (no escapes)
+let compact = true;  // compacted JSON (no CRs or spaces)
 let nextCXP = void 0;  // debug mode if undefined
-let debugEachVar = false;  // stop at each variable on top (otherwise stop at each reduction)
+
+let forceLXP = false;
 
 const library = Object.assign(intrinsic, {
   // sub2 F F F F F (r0|r1|b| f|x| f r0; f|x| f r1; f|x| f b; f|x| x)
   "inc8nc": ["Cxy",8,["Cxy",8,["var","inc8"],["var","T"]],["Bxy",8,["K",1],["Bxy",7,["C",1],["Bxy",6,["C",1],["Bxy",5,["C",1],["Bxy",4,["C",1],["Bxy",3,["C",1],["Bxy",2,["C",1],["Bxy",1,["C",1],["Cx",1,["I"]]]]]]]]]]],
-
 });
 
-const cloneCXP = (cxp) => ({
+const cloneCXP = (cxp) => (forceLXP) ? ["+", cxp, void 0, void 0] : ({
   "Sxy": () => ["Sxy", cxp[1], cloneCXP(cxp[2]), cloneCXP(cxp[3])].concat(cxp.slice(4)),
   "Sx": () => ["Sx", cxp[1], cloneCXP(cxp[2]), void 0].concat(cxp.slice(3)),
   "S": () => ["S", cxp[1], void 0, void 0].concat(cxp.slice(2)),
@@ -88,15 +88,15 @@ const NToStr = (n) => (n == 1) ? "" : "" + n;
 const CXPtoStr = (cxp) => ({
   "Sxy": () => "(S" + NToStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + " " + CXPtoStr(cxp[3]) + ")",
   "Sx": () => "(S" + NToStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  "S": () => "S",
+  "S": () => "S" + NToStr(cxp[1]),
   "Kx": () => "(K" + NToStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  "K": () => "K",
+  "K": () => "K" + NToStr(cxp[1]),
   "Cxy": () => "(C" + NToStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + " " + CXPtoStr(cxp[3]) + ")",
   "Cx": () => "(C" + NToStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  "C": () => "C",
+  "C": () => "C" + NToStr(cxp[1]),
   "Bxy": () => "(B" + NToStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + " " + CXPtoStr(cxp[3]) + ")",
   "Bx": () => "(B" + NToStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  "B": () => "B",
+  "B": () => "B" + NToStr(cxp[1]),
   "I": () => "I",
   "app": () => "(" + CXPtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
   "var": () => cxp[1],
@@ -383,14 +383,14 @@ const reduceCXP = (cxpOrg, external = false) => {
   let varFound = (cxpOrg[0] == "var");
   let [cont, cxp, apps] = reduceOne(cxpOrg, []);
   while (cont) {  // reduce loop
-    // break at the variable in external code when debug mode
-    if (external && nextCXP !== void 0 && cxp[0] == "var") {
-      if (varFound) {  // reduced at the 
-        nextCXP = cxpOrg;  // at the next time continue it
+    // break at the variable in external code when in debug mode
+    const debugMode = (nextCXP !== void 0);
+    if (debugMode && external && cxp[0] == "var") {
+      if (!varFound) {  // where it broke last time
+        varFound = true;  // now proceed one step
+      } else {  // next variable after last break
+        nextCXP = cxpOrg;  // next time starts here
         break;
-      } else {
-        // now returned to the last state
-        varFound = true;
       }
     }
     [cont, cxp, apps] = reduceOne(cxp, apps);
@@ -398,17 +398,6 @@ const reduceCXP = (cxpOrg, external = false) => {
   if (external && !cont)
     nextCXP = void 0;  // end debug mode
   return [cxp, apps];
-}
-
-const toStr = (json) => {
-  if (outputStr && toString.call(json) == "[object Array]" &&
-
-      json.reduce((a, e) => a && typeof e == "number", true)) {
-    const u8a = new Uint8Array(json);
-    return (new TextDecoder()).decode(u8a);  // UTF-8
-  } else {
-    return json;
-  }
 }
 
 const CXPtoJSON = (cxp) => {  // convert CXP to JSON (or returns void 0)
@@ -478,6 +467,20 @@ const CXPtoJSON = (cxp) => {  // convert CXP to JSON (or returns void 0)
   }
   return void 0;
 };
+
+
+
+
+const toStr = (json) => {
+  if (outputStr && toString.call(json) == "[object Array]" &&
+
+      json.reduce((a, e) => a && typeof e == "number", true)) {
+    const u8a = new Uint8Array(json);
+    return (new TextDecoder()).decode(u8a);  // UTF-8
+  } else {
+    return json;
+  }
+}
 
 const stringifyComb = (cxp) => {  // stringify CXP in combinator form
   if (outputComb) {
@@ -578,87 +581,151 @@ const pastePlainText = (e) => {
   e.preventDefault();
 };
 
-const elemCode = document.getElementById("code");
-elemCode.textContent = "";  //"         1         2         3         4         5         6\n123456789012345678901234567890123456789012345678901234567890";
-elemCode.addEventListener("paste", pastePlainText);
-const elemInput = document.getElementById("input");
-elemInput.textContent = "";
-elemInput.addEventListener("paste", pastePlainText);
-const elemInput2 = document.getElementById("input2");
-elemInput.textContent = "";
-elemInput.addEventListener("paste", pastePlainText);
-const elemOutput = document.getElementById("output");
-const elemJSON = document.getElementById('outputJSON');
-const elemCXP = document.getElementById('StringfyCXP');
-const elemStr = document.getElementById('outputStr');
-const elemC = document.getElementById('compact');
-const elemNext = document.getElementById('reduceNext');
-const elemReset = document.getElementById('reduceReset');
-const elemCopy = document.getElementById('copyToClipboard');
+document.addEventListener("DOMContentLoaded", () => {
+  const elemCode = document.getElementById("code");
+  elemCode.textContent = "";  //"         1         2         3         4         5         6\n123456789012345678901234567890123456789012345678901234567890";
+  elemCode.addEventListener("paste", pastePlainText);
+  const elemInput = document.getElementById("input");
+  elemInput.textContent = "";
+  elemInput.addEventListener("paste", pastePlainText);
+  const elemInput2 = document.getElementById("input2");
+  elemInput.textContent = "";
+  elemInput.addEventListener("paste", pastePlainText);
+  const elemOutput = document.getElementById("output");
+  const elemJSON = document.getElementById('outputJSON');
+  const elemCXP = document.getElementById('StringfyCXP');
+  const elemStr = document.getElementById('outputStr');
+  const elemC = document.getElementById('LXP');
+  const elemNext = document.getElementById('reduceNext');
+  const elemReset = document.getElementById('reduceReset');
+  const elemCopy = document.getElementById('copyToClipboard');
 
-const updateOutput = (debug = false) => {
-  let data;
   
-  if (!debug || nextCXP === void 0) {
-    const code = nodesToText(elemCode.childNodes);
-    const inputElem = nodesToText(elemInput.childNodes);
-    const input2Elem = nodesToText(elemInput2.childNodes);
-    let input, input2;
-    try {
-      data = JSON.parse(code);
-    } catch {
-      try {
-        data = LXPtoCXP(pegToLXP(parse(code)));
-      } catch {
-        data = void 0; // ignore input errors
+  const LXPStrToExpr = (lxp) => ({
+    "lam": () => [  // B K3 (C (C I v) x)
+      "Bxy", 1, [
+        "K", 3, void 0, void 0
+      ], [
+        "Cxy", 1, [
+          "Cxy", 1, [
+            "I", void 0, void 0, void 0
+          ], [
+            "+", lxp[1], void 0, void 0    // v
+          ]
+        ], LXPStrToExpr(lxp[2])  // x
+      ]
+    ],
+    "app": () => [  // K (B K2; C (C I x) y)
+      "Kx", 1, [
+        "Bxy", 1, [
+          "K", 2, void 0, void 0
+        ], [
+          "Cxy", 1, [
+            "Cxy", 1, [
+              "I", void 0, void 0, void 0
+            ], LXPStrToExpr(lxp[1])  // x
+          ], LXPStrToExpr(lxp[2])  // y
+        ]
+      ], void 0
+    ],
+    "var": () => [  // K2 (B K; C I v)
+      "Kx", 2, [
+        "Bxy", 1, [
+          "K", 1, void 0, void 0
+        ], [
+          "Cxy", 1, ["I"], ["+", lxp[1]]  // v
+        ]
+      ], void 0
+    ],
+    "()": () => ["Kx", 3, ["I"]]       // K3 I
+  })[lxp[0]]();
+  
+  
+  const updateOutput = (debug = false) => {
+    let data;
+
+    if (forceLXP) {
+      const code = nodesToText(elemCode.childNodes);
+      data = stringifyComb(LXPStrToExpr(pegToLXP(parse(code))));
+      if (compact) {
+        data = JSON.stringify(data);
+      } else {
+        data = JSON.stringify(data, null, 2);
       }
-    }
-    try {
-      input = JSON.parse(inputElem);
-    } catch {
+    } else if (!debug || nextCXP === void 0) {
+      const code = nodesToText(elemCode.childNodes);
+      const inputElem = nodesToText(elemInput.childNodes);
+      const input2Elem = nodesToText(elemInput2.childNodes);
+      let input, input2;
       try {
-        input = LXPtoCXP(pegToLXP(parse(inputElem)));
-        if (input[0] == "()")
-          input = void 0;
+        data = JSON.parse(code);
       } catch {
-        input = void 0; // ignore input errors
+        try {
+          data = LXPtoCXP(pegToLXP(parse(code)));
+        } catch {
+          data = void 0; // ignore input errors
+        }
       }
-    }
-    try {
-      input2 = JSON.parse(input2Elem);
-    } catch {
       try {
-        input2 = LXPtoCXP(pegToLXP(parse(input2Elem)));
-        if (input2[0] == "()")
-          input2 = void 0;
+        input = JSON.parse(inputElem);
       } catch {
-        input2 = void 0; // ignore input errors
+        try {
+          input = LXPtoCXP(pegToLXP(parse(inputElem)));
+          if (input[0] == "()")
+            input = void 0;
+        } catch {
+          input = void 0; // ignore input errors
+        }
       }
-    }
-    if (data !== void 0) {
-      //try {
-        const cxp = (!(!input) || input === false) ? (  // cxp to reduce
-          (!(!input2) || input2 === false) ? [
-            "app", [
+      try {
+        input2 = JSON.parse(input2Elem);
+      } catch {
+        try {
+          input2 = LXPtoCXP(pegToLXP(parse(input2Elem)));
+          if (input2[0] == "()")
+            input2 = void 0;
+        } catch {
+          input2 = void 0; // ignore input errors
+        }
+      }
+      if (data !== void 0) {
+        //try {
+          const cxp = (!(!input) || input === false) ? (  // cxp to reduce
+            (!(!input2) || input2 === false) ? [
+              "app", [
+                "app",
+                cloneCXP(data),
+                cloneCXP(input),
+                void 0
+              ],
+              cloneCXP(input2),
+              void 0
+            ] : [
               "app",
               cloneCXP(data),
               cloneCXP(input),
               void 0
-            ],
-            cloneCXP(input2),
-            void 0
-          ] : [
-            "app",
-            cloneCXP(data),
-            cloneCXP(input),
-            void 0
-          ]
-        ) : cloneCXP(data);  // no input if input is not given
-        if (debug) {
-          nextCXP = cxp;  // enter debug mode
+            ]
+          ) : cloneCXP(data);  // no input if input is not given
+          if (debug) {
+            nextCXP = cxp;  // enter debug mode
+            data = stringifyComb(cxp);
+          } else {
+            reduceCXP(cxp, true);  // reduce external code (subject to debugging)
+            data = stringifyJSON(cxp);
+          }
+        //} catch {
+        //  data = void 0;
+        //  nextCXP = void 0;
+        //}
+      }
+    } else {  // nextCXP !== void 0
+      //try {
+        const cxp = nextCXP;
+        reduceCXP(cxp, true);  // reduce external code (subject to debugging)
+        if (nextCXP !== void 0) {  // middle of debugging
           data = stringifyComb(cxp);
-        } else {
-          reduceCXP(cxp, true);  // reduce external code (subject to debugging)
+        } else {  // finished debugging
           data = stringifyJSON(cxp);
         }
       //} catch {
@@ -666,88 +733,84 @@ const updateOutput = (debug = false) => {
       //  nextCXP = void 0;
       //}
     }
-  } else {  // nextCXP !== void 0
-    //try {
-      const cxp = nextCXP;
-      reduceCXP(cxp, true);  // reduce external code (subject to debugging)
-      if (nextCXP !== void 0) {  // middle of debugging
-        data = stringifyComb(cxp);
-      } else {  // finished debugging
-        data = stringifyJSON(cxp);
+    if (data === void 0) {
+      data = "(no output)";
+    } else if (typeof data !== "string") {
+      if (compact) {
+        data = JSON.stringify(data);
+      } else {
+        data = JSON.stringify(data, null, 2);
       }
-    //} catch {
-    //  data = void 0;
-    //  nextCXP = void 0;
-    //}
-  }
-  if (data === void 0) {
-    data = "(no output)";
-  } else if (typeof data !== "string") {
-    if (compact) {
-      data = JSON.stringify(data);
-    } else {
-      data = JSON.stringify(data, null, 2);
     }
-  }
-  elemOutput.textContent = data;
-  elemReset.disabled = (nextCXP === void 0);
-  elemNext.textContent = (nextCXP === void 0) ? "Debug" : "Next";
-};  // updateOutput
+    elemOutput.textContent = data;
+    elemReset.disabled = (nextCXP === void 0);
+    elemNext.textContent = (nextCXP === void 0) ? "Debug" : "Next";
+  };  // updateOutput
 
-const obCode = new MutationObserver(mr => updateOutput());
-obCode.observe(elemCode, {
-  childList: true,      // to observe the ENTER key
-  characterData: true,  // and the other characters
-  subtree: true
-});
-const obInput = new MutationObserver(mr => updateOutput());
-obInput.observe(elemInput, {
-  childList: true,      // to observe the ENTER key
-  characterData: true,  // and the other characters
-  subtree: true
-});
-const obInput2 = new MutationObserver(mr => updateOutput());
-obInput2.observe(elemInput2, {
-  childList: true,      // to observe the ENTER key
-  characterData: true,  // and the other characters
-  subtree: true
-});
+  const obCode = new MutationObserver(mr => {
+    nextCXP = void 0;  // end debug mode
+    updateOutput();
+  });
+  obCode.observe(elemCode, {
+    childList: true,      // to observe the ENTER key
+    characterData: true,  // and the other characters
+    subtree: true
+  });
+  const obInput = new MutationObserver(mr => {
+    nextCXP = void 0;  // end debug mode
+    updateOutput();
+  });
+  obInput.observe(elemInput, {
+    childList: true,      // to observe the ENTER key
+    characterData: true,  // and the other characters
+    subtree: true
+  });
+  const obInput2 = new MutationObserver(mr => {
+    nextCXP = void 0;  // end debug mode
+    updateOutput();
+  });
+  obInput2.observe(elemInput2, {
+    childList: true,      // to observe the ENTER key
+    characterData: true,  // and the other characters
+    subtree: true
+  });
 
-elemJSON.disabled = false;
-elemJSON.checked = outputJSON;
-elemJSON.addEventListener('click', () => {
-  outputJSON = elemJSON.checked;
+  elemJSON.disabled = false;
+  elemJSON.checked = outputJSON;
+  elemJSON.addEventListener('click', () => {
+    outputJSON = elemJSON.checked;
+    updateOutput();
+  });
+
+  elemCXP.disabled = false;
+  elemCXP.checked = outputComb;
+  elemCXP.addEventListener('click', () => {
+    outputComb = elemCXP.checked;
+    updateOutput();
+  });
+
+  elemStr.disabled = false;
+  elemStr.checked = outputStr;
+  elemStr.addEventListener('click', () => {
+    outputStr = elemStr.checked;
+    updateOutput();
+  });
+  elemC.disabled = false;
+  elemC.checked = forceLXP;
+  elemC.addEventListener('click', () => {
+    forceLXP = elemC.checked;
+    updateOutput();
+  });
+
+  elemNext.addEventListener('click', () => {
+    updateOutput(true);  // debug mode
+  });
+  elemReset.addEventListener('click', () => {
+    nextCXP = void 0;  // end debug mode
+    updateOutput();
+  });
+  elemCopy.addEventListener('click', () => {
+    navigator.clipboard.writeText(elemOutput.textContent);
+  });
   updateOutput();
 });
-
-elemCXP.disabled = false;
-elemCXP.checked = outputComb;
-elemCXP.addEventListener('click', () => {
-  outputComb = elemCXP.checked;
-  updateOutput();
-});
-
-elemStr.disabled = false;
-elemStr.checked = outputStr;
-elemStr.addEventListener('click', () => {
-  outputStr = elemStr.checked;
-  updateOutput();
-});
-elemC.disabled = false;
-elemC.checked = compact;
-elemC.addEventListener('click', () => {
-  compact = elemC.checked;
-  updateOutput();
-});
-
-elemNext.addEventListener('click', () => {
-  updateOutput(true);  // debug mode
-});
-elemReset.addEventListener('click', () => {
-  nextCXP = void 0;  // end debug mode
-  updateOutput();
-});
-elemCopy.addEventListener('click', () => {  navigator.clipboard.writeText(document.getElementById("output").textContent);
-});
-
-updateOutput();
