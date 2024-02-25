@@ -46,7 +46,7 @@ const library = Object.assign(intrinsic, {
   "inc8nc": ["Cxy",8,["Cxy",8,["var","inc8"],["var","T"]],["Bxy",8,["K",1],["Bxy",7,["C",1],["Bxy",6,["C",1],["Bxy",5,["C",1],["Bxy",4,["C",1],["Bxy",3,["C",1],["Bxy",2,["C",1],["Bxy",1,["C",1],["Cx",1,["I"]]]]]]]]]]],
 });
 
-const cloneCXP = (cxp) => (forceLXP) ? ["+", cxp, void 0, void 0] : ({
+const cloneCXP = (cxp) => ({
   "Sxy": () => ["Sxy", cxp[1], cloneCXP(cxp[2]), cloneCXP(cxp[3])].concat(cxp.slice(4)),
   "Sx": () => ["Sx", cxp[1], cloneCXP(cxp[2]), void 0].concat(cxp.slice(3)),
   "S": () => ["S", cxp[1], void 0, void 0].concat(cxp.slice(2)),
@@ -61,7 +61,8 @@ const cloneCXP = (cxp) => (forceLXP) ? ["+", cxp, void 0, void 0] : ({
   "I": () => ["I", void 0, void 0, void 0].concat(cxp.slice(1)),
   "app": () => ["app", cloneCXP(cxp[1]), cloneCXP(cxp[2]), void 0].concat(cxp.slice(3)),
   "var": () => ["var", cxp[1], void 0, void 0].concat(cxp.slice(2)),
-  "()": () => ["()", void 0, void 0, void 0].concat(cxp.slice(1))
+  "()": () => ["()", void 0, void 0, void 0].concat(cxp.slice(1)),
+  "+": ()=> ["+", cxp[1], void 0, void 0].concat(cxp.slice(2))
 }[cxp[0]] ?? (() => ["+", cxp, void 0, void 0]))();
 const removeVoid = (cxp) => ({
   "Sxy": () => ["Sxy", cxp[1], removeVoid(cxp[2]), removeVoid(cxp[3])].concat(cxp.slice(4)),
@@ -400,12 +401,13 @@ const reduceCXP = (cxpOrg, external = false) => {
   return [cxp, apps];
 }
 
-const CXPtoJSON = (cxp) => {  // convert CXP to JSON (or returns void 0)
-  // give a sentinel to check its output
-  cxp[1] = [...cxp];
-  cxp[0] = "app";
-  cxp[2] = ["-", true, void 0, void 0],  // sentinel to output true (boolean)
-  cxp[3] = void 0;
+const CXPtoJSON = (cxpOrg) => {  // convert CXP to JSON (or returns void 0)
+  // recognize output by placing a sentinel
+  let cxp = [  // clone CXP so that it does not affect to the original CXP
+    "app", cloneCXP(cxpOrg), [
+      "-", 0, void 0, void 0    // sentinel#0 to output
+    ], void 0
+  ];
   let [[sentl, sentlData], apps] = reduceCXP(cxp);  // internal for output
 
   // first check whether it is a number such as:
@@ -440,19 +442,20 @@ const CXPtoJSON = (cxp) => {  // convert CXP to JSON (or returns void 0)
   }
 
   // give another sentinel to check boolean or array
-  cxp[1] = [...cxp];
-  cxp[0] = "app";
-  cxp[2] = ["-", false, void 0, void 0],  // sentinel to output false
-  cxp[3] = void 0;
+  cxp = [
+    "app", cxp, [
+      "-", 1, void 0, void 0  // sentinel#1 to output
+    ], void 0
+  ];
   [[sentl, sentlData], apps] = reduceCXP(cxp);  // internal for output
 
   if (sentl == "-") {
     if (apps.length == 0) {  // boolean or an end of array (f|x| x)
-      return sentlData;  // boolean false or true
+      return (sentlData  == 0);  // 0: true, 1: false
     } else {
       const [app, x, y] = cxp;
       const [appX, xx, xy] = x;
-      if (apps.length == 2 && app == "app" && appX == "app" && sentlData) {  // f|x| f data subArray
+      if (apps.length == 2 && app == "app" && appX == "app" && sentlData == 0) {  // f|x| f data subArray
         const data = toStr(CXPtoJSON(xy));
         if (data !== void 0) {
           const subAr = CXPtoJSON(y);
@@ -465,6 +468,130 @@ const CXPtoJSON = (cxp) => {  // convert CXP to JSON (or returns void 0)
       }
     }
   }
+
+  // give some more sentinels to check LCX
+  //         0   1   2  3 4 5 6 7 8
+  //   cxp lam app var ph s k c b i
+  cxp = [
+    "app", [
+      "app", [
+        "app", [
+          "app", [
+            "app", [
+              "app", [
+                "app", cxp, [ // sentinel#0 and #1
+                  "-", 2, void 0, void 0  // sentinel#2 to output
+                ], void 0
+              ], [
+                "-", 3, void 0, void 0  // sentinel#3 to output
+              ], void 0
+            ], [
+              "-", 4, void 0, void 0  // sentinel#4 to output
+            ], void 0
+          ], [
+            "-", 5, void 0, void 0  // sentinel#5 to output
+          ], void 0
+        ], [
+          "-", 6, void 0, void 0  // sentinel#6 to output
+        ], void 0
+      ], [
+        "-", 7, void 0, void 0  // sentinel#7 to output
+      ], void 0
+    ], [
+      "-", 8, void 0, void 0  // sentinel#8 to output
+    ], void 0
+  ];  // cxp
+  [[sentl, sentlData], apps] = reduceCXP(cxp);  // internal for output
+  if (sentl == "-") {
+    const ret = [
+      () => {  // 0: lam v x vf (lambda)
+        const [app, x, y] = cxp;
+        const [appX, xx, xy] = x;
+        const [appXX, xxx, xxy] = xx;
+        if (apps.length == 3 && app == "app" && appX == "app" && appXX == "app") {
+          const lcxV = toStr(CXPtoJSON(xxy));  // variable name
+          const lcxX = CXPtoJSON(xy);  // expression
+          const lcxVF = CXPtoJSON(y);  // array of string
+          if (lcxV != void 0 && lcxX != void 0 && lcxVF != void 0)
+            return ["LCX:lam", lcxV, lcxX, lcxVF];
+        }
+        return void 0;
+      },
+      () => {  // 1: app x y vf (application)
+        const [app, x, y] = cxp;
+        const [appX, xx, xy] = x;
+        const [appXX, xxx, xxy] = xx;
+        if (apps.length == 3 && app == "app" && appX == "app" && appXX == "app") {
+          const lcxX = CXPtoJSON(xxy);  // expression x
+          const lcxY = CXPtoJSON(xy);  // expression y
+          const lcxVF = CXPtoJSON(y);  // array of string
+          if (lcxX != void 0 && lcxY != void 0 && lcxVF != void 0)
+            return ["LCX:app", lcxX, lcxY, lcxVF];
+        }
+        return void 0;
+      },
+      () => {  // 2: var v (variable)
+        const [app, x, y] = cxp;
+        if (apps.length == 1 && app == "app") {
+          const lcxV = toStr(CXPtoJSON(y));  // variable name
+          if (lcxV != void 0)
+            return ["LCX:var", lcxV];
+        }
+        return void 0;
+      },
+      () => {  // 3: ph (placeholder)
+        if (apps.length == 0) {
+          return ["LCX:()"];
+        }
+        return void 0;
+      },
+      () => {  // 4: s n (Sn combinator)
+        const [app, x, y] = cxp;
+        if (apps.length == 1 && app == "app") {
+          const lcxN = CXPtoJSON(y);  // n
+          if (lcxN != void 0)
+            return ["LCX:S", lcxN];
+        }
+        return void 0;
+      },
+      () => {  // 5: k n (Kn combinator)
+        const [app, x, y] = cxp;
+        if (apps.length == 1 && app == "app") {
+          const lcxN = CXPtoJSON(y);  // n
+          if (lcxN != void 0)
+            return ["LCX:K", lcxN];
+        }
+        return void 0;
+      },
+      () => {  // 6: c n (Cn combinator)
+        const [app, x, y] = cxp;
+        if (apps.length == 1 && app == "app") {
+          const lcxN = CXPtoJSON(y);  // n
+          if (lcxN != void 0)
+            return ["LCX:C", lcxN];
+        }
+        return void 0;
+      },
+      () => {  // 7: b n (Bn combinator)
+        const [app, x, y] = cxp;
+        if (apps.length == 1 && app == "app") {
+          const lcxN = CXPtoJSON(y);  // n
+          if (lcxN != void 0)
+            return ["LCX:B", lcxN];
+        }
+        return void 0;
+      },
+      () => {  // 8: i (I combinator)
+        if (apps.length == 0) {
+          return ["LCX:I"];
+        }
+        return void 0;
+      }
+    ][sentlData]();
+    if (ret != void 0)
+      return ret;
+  }
+
   return void 0;
 };
 
@@ -643,18 +770,10 @@ document.addEventListener("DOMContentLoaded", () => {
   
   const updateOutput = (debug = false) => {
     let data;
-
-    if (forceLXP) {
-      const code = nodesToText(elemCode.childNodes);
-      data = stringifyComb(LXPStrToExpr(pegToLXP(parse(code))));
-      if (compact) {
-        data = JSON.stringify(data);
-      } else {
-        data = JSON.stringify(data, null, 2);
-      }
-    } else if (!debug || nextCXP === void 0) {
-      const code = nodesToText(elemCode.childNodes);
-      const inputElem = nodesToText(elemInput.childNodes);
+    const code = nodesToText(elemCode.childNodes);
+    const inputElem = nodesToText(elemInput.childNodes);
+ 
+    if (!debug || nextCXP === void 0) {
       const input2Elem = nodesToText(elemInput2.childNodes);
       let input, input2;
       try {
@@ -670,7 +789,10 @@ document.addEventListener("DOMContentLoaded", () => {
         input = JSON.parse(inputElem);
       } catch {
         try {
-          input = LXPtoCXP(pegToLXP(parse(inputElem)));
+          if (forceLXP) {
+            input = LXPStrToExpr(pegToLXP(parse(inputElem)));
+          } else 
+            input = LXPtoCXP(pegToLXP(parse(inputElem)));
           if (input[0] == "()")
             input = void 0;
         } catch {
