@@ -63,7 +63,7 @@ const cloneCXP = (cxp) => ({
   "var": () => ["var", cxp[1], void 0, void 0].concat(cxp.slice(2)),
   "()": () => ["()", void 0, void 0, void 0].concat(cxp.slice(1)),
   "+": ()=> ["+", cxp[1], void 0, void 0].concat(cxp.slice(2))
-}[cxp[0]] ?? (() => ["+", cxp, void 0, void 0]))();
+}[cxp[0]])();
 const removeVoid = (cxp) => ({
   "Sxy": () => ["Sxy", cxp[1], removeVoid(cxp[2]), removeVoid(cxp[3])].concat(cxp.slice(4)),
   "Sx": () => ["Sx", cxp[1], removeVoid(cxp[2])].concat(cxp.slice(4)),
