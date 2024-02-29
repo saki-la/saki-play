@@ -12,11 +12,13 @@
   ["Bx", n, exprX]
   ["B", n]
   ["I"]
-  ["app", exprX, exprY]
-  ["var", "varName"]  // free varialble
-  ["()"]  // placeholder
-  ["+", cval]  // internal: sentinel to input
-  ["-", cval]  // internal: sentinel to output
+  ["app", exprX, exprY]  // application
+  ["var", "varName"]     // free varialble
+  ["()"]       // placeholder
+  ["+", json]  // JSON value (boolean, number, string or array)
+
+  XRF (eXpression Reduction Form)
+  
 
   input/output example (priority order)
   (x|y| y) <-> JSON boolean false
@@ -46,28 +48,6 @@ const library = Object.assign(intrinsic, {
   "inc8nc": ["Cxy",8,["Cxy",8,["var","inc8"],["var","T"]],["Bxy",8,["K",1],["Bxy",7,["C",1],["Bxy",6,["C",1],["Bxy",5,["C",1],["Bxy",4,["C",1],["Bxy",3,["C",1],["Bxy",2,["C",1],["Bxy",1,["C",1],["Cx",1,["I"]]]]]]]]]]],
 });
 
-const cloneXRF = (xrf) => ({
-  "Sxy": () => ["Sxy", xrf[1], cloneXRF(xrf[2]), cloneXRF(xrf[3])].concat(xrf.slice(4)),
-  "Sx": () => ["Sx", xrf[1], cloneXRF(xrf[2]), void 0].concat(xrf.slice(3)),
-  "S": () => ["S", xrf[1], void 0, void 0].concat(xrf.slice(2)),
-  "Kx": () => ["Kx", xrf[1], cloneXRF(xrf[2]), void 0].concat(xrf.slice(3)),
-  "K": () => ["K", xrf[1], void 0, void 0].concat(xrf.slice(2)),
-  "Cxy": () => ["Cxy", xrf[1], cloneXRF(xrf[2]), cloneXRF(xrf[3])].concat(xrf.slice(4)),
-  "Cx": () => ["Cx", xrf[1], cloneXRF(xrf[2]), void 0].concat(xrf.slice(3)),
-  "C": () => ["C", xrf[1], void 0, void 0].concat(xrf.slice(2)),
-  "Bxy": () => ["Bxy", xrf[1], cloneXRF(xrf[2]), cloneXRF(xrf[3])].concat(xrf.slice(4)),
-  "Bx": () => ["Bx", xrf[1], cloneXRF(xrf[2]), void 0].concat(xrf.slice(3)),
-  "B": () => ["B", xrf[1], void 0, void 0].concat(xrf.slice(2)),
-  "I": () => ["I", void 0, void 0, void 0].concat(xrf.slice(1)),
-  "app": () => ["app", cloneXRF(xrf[1]), cloneXRF(xrf[2]), void 0].concat(xrf.slice(3)),
-  "var": () => ["var", xrf[1], void 0, void 0].concat(xrf.slice(2)),
-  "()": () => ["()", void 0, void 0, void 0].concat(xrf.slice(1)),
-  "+x": ()=> ["+x", xrf[1], void 0, void 0].concat(xrf.slice(2)),
-  "+b": ()=> ["+b", xrf[1], void 0, void 0].concat(xrf.slice(2)),
-  "+n": ()=> ["+n", xrf[1], void 0, void 0].concat(xrf.slice(2)),
-  "+s": ()=> ["+s", xrf[1], void 0, void 0].concat(xrf.slice(2)),
-  "+a": ()=> ["+a", xrf[1], void 0, void 0].concat(xrf.slice(2))
-}[xrf[0]])();
 const CXPtoXRF = (cxp) => ["+x", cxp, void 0, void 0];
 const JSONtoXRF = (json) => ({
   "boolean": () => ["+b", json, void 0, void 0],
@@ -77,52 +57,26 @@ const JSONtoXRF = (json) => ({
     "[object Array]": () => ["+a", json, void 0, void 0]
   }[toString.call(json)] ?? (() => ["()", void 0, void 0, void 0]))()
 }[typeof json] ?? (() => ["()", void 0, void 0, void 0]))();
-const reduceThenXRFtoCXP = (xrf) => {
-  reduceXRF(xrf);  // internal for input
-  return XRFtoCXP(xrf);
-};
-const XRFtoCXP = (xrf) => ({
-  "Sxy": () => ["Sxy", xrf[1], XRFtoCXP(xrf[2]), XRFtoCXP(xrf[3])].concat(xrf.slice(4)),
-  "Sx": () => ["Sx", xrf[1], XRFtoCXP(xrf[2])].concat(xrf.slice(4)),
-  "S": () => ["S", xrf[1]].concat(xrf.slice(4)),
-  "Kx": () => ["Kx", xrf[1], XRFtoCXP(xrf[2])].concat(xrf.slice(4)),
-  "K": () => ["K", xrf[1]].concat(xrf.slice(4)),
-  "Cxy": () => ["Cxy", xrf[1], XRFtoCXP(xrf[2]), XRFtoCXP(xrf[3])].concat(xrf.slice(4)),
-  "Cx": () => ["Cx", xrf[1], XRFtoCXP(xrf[2])].concat(xrf.slice(4)),
-  "C": () => ["C", xrf[1]].concat(xrf.slice(4)),
-  "Bxy": () => ["Bxy", xrf[1], XRFtoCXP(xrf[2]), XRFtoCXP(xrf[3])].concat(xrf.slice(4)),
-  "Bx": () => ["Bx", xrf[1], XRFtoCXP(xrf[2])].concat(xrf.slice(4)),
-  "B": () => ["B", xrf[1]].concat(xrf.slice(4)),
-  "I": () => ["I"].concat(xrf.slice(4)),
-  "app": () => ["app", XRFtoCXP(xrf[1]), XRFtoCXP(xrf[2])].concat(xrf.slice(4)),
-  "var": () => ["var", xrf[1]].concat(xrf.slice(4)),
-  "()": () => ["()"].concat(xrf.slice(4)),
-  "+x": () => reduceThenXRFtoCXP(xrf),
-  "+b": () => reduceThenXRFtoCXP(xrf),
-  "+n": () => reduceThenXRFtoCXP(xrf),
-  "+s": () => reduceThenXRFtoCXP(xrf),
-  "+a": () => reduceThenXRFtoCXP(xrf)
-}[xrf[0]])();
 
 const reduceCXP = (xrf, apps) => {  // xrf ["+x", cxp, v0, v1]
   const [px, cxp, v0, v1] = xrf;
   const newXRF = ({
-    "Sxy": () => ["Sxy", cxp[1], CXPtoXRF(cxp[2]), CXPtoXRF(cxp[3])].concat(cxp.slice(4)),
-    "Sx": () => ["Sx", cxp[1], CXPtoXRF(cxp[2]), void 0].concat(cxp.slice(3)),
-    "S": () => ["S", cxp[1], void 0, void 0].concat(cxp.slice(2)),
-    "Kx": () => ["Kx", cxp[1], CXPtoXRF(cxp[2]), void 0].concat(cxp.slice(3)),
-    "K": () => ["K", cxp[1], void 0, void 0].concat(cxp.slice(2)),
-    "Cxy": () => ["Cxy", cxp[1], CXPtoXRF(cxp[2]), CXPtoXRF(cxp[3])].concat(cxp.slice(4)),
-    "Cx": () => ["Cx", cxp[1], CXPtoXRF(cxp[2]), void 0].concat(cxp.slice(3)),
-    "C": () => ["C", cxp[1], void 0, void 0].concat(cxp.slice(2)),
-    "Bxy": () => ["Bxy", cxp[1], CXPtoXRF(cxp[2]), CXPtoXRF(cxp[3])].concat(cxp.slice(4)),
-    "Bx": () => ["Bx", cxp[1], CXPtoXRF(cxp[2]), void 0].concat(cxp.slice(3)),
-    "B": () => ["B", cxp[1], void 0, void 0].concat(cxp.slice(2)),
-    "I": () => ["I", void 0, void 0, void 0].concat(cxp.slice(1)),
-    "app": () => ["app", CXPtoXRF(cxp[1]), CXPtoXRF(cxp[2]), void 0].concat(cxp.slice(3)),
-    "var": () => ["var", cxp[1], void 0, void 0].concat(cxp.slice(2)),
-    "()": () => ["()", void 0, void 0, void 0].concat(cxp.slice(1)),
-    "+": ()=> JSONtoXRF(cxp[1]).concat(cxp.slice(2))
+    "Sxy": () => ["Sxy", cxp[1], CXPtoXRF(cxp[2]), CXPtoXRF(cxp[3])],
+    "Sx": () => ["Sx", cxp[1], CXPtoXRF(cxp[2]), void 0],
+    "S": () => ["S", cxp[1], void 0, void 0],
+    "Kx": () => ["Kx", cxp[1], CXPtoXRF(cxp[2]), void 0],
+    "K": () => ["K", cxp[1], void 0, void 0],
+    "Cxy": () => ["Cxy", cxp[1], CXPtoXRF(cxp[2]), CXPtoXRF(cxp[3])],
+    "Cx": () => ["Cx", cxp[1], CXPtoXRF(cxp[2]), void 0],
+    "C": () => ["C", cxp[1], void 0, void 0],
+    "Bxy": () => ["Bxy", cxp[1], CXPtoXRF(cxp[2]), CXPtoXRF(cxp[3])],
+    "Bx": () => ["Bx", cxp[1], CXPtoXRF(cxp[2]), void 0],
+    "B": () => ["B", cxp[1], void 0, void 0],
+    "I": () => ["I", void 0, void 0, void 0],
+    "app": () => ["app", CXPtoXRF(cxp[1]), CXPtoXRF(cxp[2]), void 0],
+    "var": () => ["var", cxp[1], void 0, void 0],
+    "()": () => ["()", void 0, void 0, void 0],
+    "+": ()=> JSONtoXRF(cxp[1])
   }[cxp[0]])();
   xrf[0] = newXRF[0];
   xrf[1] = newXRF[1];
@@ -140,10 +94,10 @@ const reduceVar = (xrf, apps) => {  // xrf ["var", v, v0, v1]
     xrf[2] = newXRF[2];
     xrf[3] = newXRF[3];
     return [true, xrf, apps];
-  } else {
+  } else {  // not in library
     const comb = (v.match(/^[SKCB]/) ?? [null])[0];
     const n = (v.slice(1).match(/^[0-9]+/) ?? [null])[0];
-    if (comb) {
+    if (comb) {  // combinators
       xrf[0] = comb;
       xrf[1] = n ? +n : 1;
       xrf[2] = void 0;
@@ -155,8 +109,8 @@ const reduceVar = (xrf, apps) => {  // xrf ["var", v, v0, v1]
       xrf[2] = void 0;
       xrf[3] = void 0;
       return [true, xrf, apps];
-    } else {
-      return [false, xrf, apps];  // undefined variable
+    } else {  // undefined variable
+      return [false, xrf, apps];
     }
   }
 };  // reduceVar
@@ -196,7 +150,7 @@ const reduceNum = (xrf, apps) => {  // xrf ["+n", num, v0, v1]
 const reduceStr = (xrf, apps) => {  // xrf ["+s", str, v0, v1]
   const [ps, str, v0, v1] = xrf;
   const u8a = new TextEncoder().encode(str);
-  xrf[0] = "+a";
+  xrf[0] = "+a";  // JSON array
   xrf[1] = [...u8a];  // convert it into an array
   //xrf[2] = v0;
   //xrf[3] = v1;
@@ -246,7 +200,8 @@ const reduceSxy = (xrfX, apps) => {
       xrf[2] = [app, xy, y, v1];
       //xrf[3] = v1;
       apps.push(xrf);
-      return [true, xrf[1], apps];
+      apps.push(xrf[1]);
+      return [true, xx, apps];
     }
   } else {  // insufficient arguments
     return [false, xrfX, apps];
@@ -333,7 +288,8 @@ const reduceCxy = (xrfX, apps) => {
       xrf[2] = xy;
       //xrf[3] = v1;
       apps.push(xrf);
-      return [true, xrf[1], apps];
+      apps.push(xrf[1]);
+      return [true, xx, apps];
     }
   } else {  // insufficient arguments
     return [false, xrfX, apps];
@@ -457,7 +413,7 @@ const reduceOne = (xrf, apps) => ({  // reduce one step
   "+s": reduceStr,     // JSON strings
   "+a": reduceStr,     // JSON arrays
   "-": stopReduce      // sentinel to output
-}[xrf[0]])(xrf, apps);
+}[xrf[0]] ?? ((x,a)=>{debugger;}))(xrf, apps);
 
 const reduceXRF = (xrfOrg, external = false) => {
   let varFound = (xrfOrg[0] == "var");
@@ -480,6 +436,55 @@ const reduceXRF = (xrfOrg, external = false) => {
   return [xrf, apps];
 }
 
+const reduceThenXRFtoCXP = (xrf) => {
+  reduceXRF(xrf);  // internal for input
+  return XRFtoCXP(xrf);
+};
+const XRFtoCXP = (xrf) => ({
+  "Sxy": () => ["Sxy", xrf[1], XRFtoCXP(xrf[2]), XRFtoCXP(xrf[3])],
+  "Sx": () => ["Sx", xrf[1], XRFtoCXP(xrf[2])],
+  "S": () => ["S", xrf[1]],
+  "Kx": () => ["Kx", xrf[1], XRFtoCXP(xrf[2])],
+  "K": () => ["K", xrf[1]],
+  "Cxy": () => ["Cxy", xrf[1], XRFtoCXP(xrf[2]), XRFtoCXP(xrf[3])],
+  "Cx": () => ["Cx", xrf[1], XRFtoCXP(xrf[2])],
+  "C": () => ["C", xrf[1]],
+  "Bxy": () => ["Bxy", xrf[1], XRFtoCXP(xrf[2]), XRFtoCXP(xrf[3])],
+  "Bx": () => ["Bx", xrf[1], XRFtoCXP(xrf[2])],
+  "B": () => ["B", xrf[1]],
+  "I": () => ["I"],
+  "app": () => ["app", XRFtoCXP(xrf[1]), XRFtoCXP(xrf[2])],
+  "var": () => ["var", xrf[1]],
+  "()": () => ["()"],
+  "+x": () => reduceThenXRFtoCXP(xrf),
+  "+b": () => reduceThenXRFtoCXP(xrf),
+  "+n": () => reduceThenXRFtoCXP(xrf),
+  "+s": () => reduceThenXRFtoCXP(xrf),
+  "+a": () => reduceThenXRFtoCXP(xrf)
+}[xrf[0]])();
+const cloneXRF = (xrf) => ({
+  "Sxy": () => ["Sxy", xrf[1], cloneXRF(xrf[2]), cloneXRF(xrf[3])],
+  "Sx": () => ["Sx", xrf[1], cloneXRF(xrf[2]), void 0],
+  "S": () => ["S", xrf[1], void 0, void 0],
+  "Kx": () => ["Kx", xrf[1], cloneXRF(xrf[2]), void 0],
+  "K": () => ["K", xrf[1], void 0, void 0],
+  "Cxy": () => ["Cxy", xrf[1], cloneXRF(xrf[2]), cloneXRF(xrf[3])],
+  "Cx": () => ["Cx", xrf[1], cloneXRF(xrf[2]), void 0],
+  "C": () => ["C", xrf[1], void 0, void 0],
+  "Bxy": () => ["Bxy", xrf[1], cloneXRF(xrf[2]), cloneXRF(xrf[3])],
+  "Bx": () => ["Bx", xrf[1], cloneXRF(xrf[2]), void 0],
+  "B": () => ["B", xrf[1], void 0, void 0],
+  "I": () => ["I", void 0, void 0, void 0],
+  "app": () => ["app", cloneXRF(xrf[1]), cloneXRF(xrf[2]), void 0],
+  "var": () => ["var", xrf[1], void 0, void 0],
+  "()": () => ["()", void 0, void 0, void 0],
+  "+x": ()=> ["+x", xrf[1], void 0, void 0],
+  "+b": ()=> ["+b", xrf[1], void 0, void 0],
+  "+n": ()=> ["+n", xrf[1], void 0, void 0],
+  "+s": ()=> ["+s", xrf[1], void 0, void 0],
+  "+a": ()=> ["+a", xrf[1], void 0, void 0],
+  "-": ()=> ["-", xrf[1], xrf[2], xrf[3]]
+}[xrf[0]])();
 const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
   // recognize output by placing a sentinel
   const xrf1 = [  // clone CXP so that it does not affect to the original XRF
@@ -903,7 +908,7 @@ document.addEventListener("DOMContentLoaded", () => {
         //try {
           const xrf = (!(!input) || input === false) ? (  // xrf to reduce
             (!(!input2) || input2 === false) ? [
-              "app", () => [
+              "app", [
                 "app",
                 CXPtoXRF(data),
                 CXPtoXRF(input),
