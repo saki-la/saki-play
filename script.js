@@ -36,6 +36,7 @@
   ["+x", cxp, void 0, void 0]   // source CXP
   ["+c", xrf, void 0, void 0]   // cloning XRF
   ["+b", bool, void 0, void 0]  // JSON boolean
+  ["+f", func, 
   
   RS (Reduction State)
   ["OK", "ND", cnt, apps]  // keep going with the reduction count (no debugging)
@@ -43,13 +44,14 @@
   ["OK", "D1", cnt, apps]  // under debugging: reduce a comb/var then find next
   ["OK", "V0", cnt, apps]  // under debugging: find var
   ["OK", "V1", cnt, apps]  // under debugging: reduce a var then find next
-  ["DN", "OT", cnt, apps, val]  // done: output
+  ["DN", "OT", cnt, apps]  // done: output
   ["DN", "IA", cnt, apps]  // done: insufficient arguments
-  ["DN", "D2", cnt, apps]  // under debugging: stopped at comb/var
-  ["DN", "V2", cnt, apps]  // under debugging: stopped at var
+  ["DB", "D2", cnt, apps]  // debug break: stopped at comb/var
+  ["DB", "V2", cnt, apps]  // debug break: stopped at var
   ["ER", "EC", cnt, apps]  // error: exceeded maximum count
   ["ER", "UV", cnt, apps]  // error: undefined variable
   ["ER", "PH", cnt, apps]  // error: reduced on placeholder
+  ["ER", "NV", cnt, apps]  // error: failed to reduce by native function
 
 
   input/output example (priority order)
@@ -62,10 +64,10 @@
 */
 
 "use strict";
-import { intrinsic } from 'https://saki-la.github.io/saki-play/intrinsic.js';
-import { parse } from 'https://saki-la.github.io/saki-play/sakiMin.pegjs.js';
-import { pegToLXP } from 'https://saki-la.github.io/saki-play/PEGToLXP.js';
-import { LXPtoCXP } from 'https://saki-la.github.io/saki-play/LXPtoCXP.js';
+import { intrinsic } from "https://saki-la.github.io/saki-play/intrinsic.js";
+import { parse } from "https://saki-la.github.io/saki-play/sakiMin.pegjs.js";
+import { pegToLXP } from "https://saki-la.github.io/saki-play/PEGToLXP.js";
+import { LXPtoCXP } from "https://saki-la.github.io/saki-play/LXPtoCXP.js";
 
 let outputJSON = true;  // output in JSON representation
 let outputComb = true;  // output in combinator form
@@ -76,21 +78,26 @@ let debugState = void 0;  // debug mode if not undefined
 let forceLXP = false;
 
 const library = Object.assign(intrinsic, {
-  // sub2 F F F F F (r0|r1|b| f|x| f r0; f|x| f r1; f|x| f b; f|x| x)
-  "inc8nc": ["Cxy",8,["Cxy",8,["var","inc8"],["var","T"]],["Bxy",8,["K",1],["Bxy",7,["C",1],["Bxy",6,["C",1],["Bxy",5,["C",1],["Bxy",4,["C",1],["Bxy",3,["C",1],["Bxy",2,["C",1],["Bxy",1,["C",1],["Cx",1,["I"]]]]]]]]]]],
 });
+
 /*-------|---------|---------|---------|---------|--------*/
 // how to construct XRF
 const CXPtoXRF = (cxp) => ["+x", cxp, void 0, void 0];
 const cloneXRF = (xrf) => ["+c", xrf, void 0, void 0];
-const JSONtoXRF = (json) => ({
-  "boolean": () => ["+b", json, void 0, void 0],
-  "number":  () => ["+n", json, void 0, void 0],
-  "string":  () => ["+s", json, void 0, void 0],
-  "object": () => ({
-    "[object Array]": () => ["+a", json, void 0, void 0]
-  }[toString.call(json)] ?? (() => ["+j", json, void 0, void 0]))()
-}[typeof json] ?? (() => ["+j", json, void 0, void 0]))();
+const JSONtoXRF = (json) =>
+  ((
+    {
+      boolean: () => ["+b", json, void 0, void 0],
+      number: () => ["+n", json, void 0, void 0],
+      string: () => ["+s", json, void 0, void 0],
+      object: () =>
+        ((
+          {
+            "[object Array]": () => ["+a", json, void 0, void 0]
+          }[toString.call(json)] ?? (() => ["+j", json, void 0, void 0])
+        )())
+    }[typeof json] ?? (() => ["+j", json, void 0, void 0])
+  )());
 /*-------|---------|---------|---------|---------|--------*/
 // reduceOne calls those reduceXXX functions
 // some functions call back reduceOne by tail call
@@ -100,26 +107,26 @@ const JSONtoXRF = (json) => ({
 // it need to return rather than keep calling reduceOne
 // since JavaScript consumes stack on every tail call
 // it returns everytime it reduce a combinator
-const reduceCXP = (xrf, rstate) => {  // xrf ["+x", cxp, v0, v1]
+const reduceCXP = (xrf, rstate) => {  // "+x"
   const [px, cxp, v0, v1] = xrf;
-  const newXRF = ({
-    "Sxy": () => ["Sxy", cxp[1], CXPtoXRF(cxp[2]), CXPtoXRF(cxp[3])],
-    "Sx": () => ["Sx", cxp[1], CXPtoXRF(cxp[2]), void 0],
-    "S": () => ["S", cxp[1], void 0, void 0],
-    "Kx": () => ["Kx", cxp[1], CXPtoXRF(cxp[2]), void 0],
-    "K": () => ["K", cxp[1], void 0, void 0],
-    "Cxy": () => ["Cxy", cxp[1], CXPtoXRF(cxp[2]), CXPtoXRF(cxp[3])],
-    "Cx": () => ["Cx", cxp[1], CXPtoXRF(cxp[2]), void 0],
-    "C": () => ["C", cxp[1], void 0, void 0],
-    "Bxy": () => ["Bxy", cxp[1], CXPtoXRF(cxp[2]), CXPtoXRF(cxp[3])],
-    "Bx": () => ["Bx", cxp[1], CXPtoXRF(cxp[2]), void 0],
-    "B": () => ["B", cxp[1], void 0, void 0],
-    "I": () => ["I", void 0, void 0, void 0],
-    "app": () => ["app", CXPtoXRF(cxp[1]), CXPtoXRF(cxp[2]), void 0],
-    "var": () => ["var", cxp[1], void 0, void 0],
+  const newXRF = {
+    Sxy: () => ["Sxy", cxp[1], CXPtoXRF(cxp[2]), CXPtoXRF(cxp[3])],
+    Sx: () => ["Sx", cxp[1], CXPtoXRF(cxp[2]), void 0],
+    S: () => ["S", cxp[1], void 0, void 0],
+    Kx: () => ["Kx", cxp[1], CXPtoXRF(cxp[2]), void 0],
+    K: () => ["K", cxp[1], void 0, void 0],
+    Cxy: () => ["Cxy", cxp[1], CXPtoXRF(cxp[2]), CXPtoXRF(cxp[3])],
+    Cx: () => ["Cx", cxp[1], CXPtoXRF(cxp[2]), void 0],
+    C: () => ["C", cxp[1], void 0, void 0],
+    Bxy: () => ["Bxy", cxp[1], CXPtoXRF(cxp[2]), CXPtoXRF(cxp[3])],
+    Bx: () => ["Bx", cxp[1], CXPtoXRF(cxp[2]), void 0],
+    B: () => ["B", cxp[1], void 0, void 0],
+    I: () => ["I", void 0, void 0, void 0],
+    app: () => ["app", CXPtoXRF(cxp[1]), CXPtoXRF(cxp[2]), void 0],
+    var: () => ["var", cxp[1], void 0, void 0],
     "()": () => ["()", void 0, void 0, void 0],
-    "+": ()=> JSONtoXRF(cxp[1])
-  }[cxp[0]])();
+    "+": () => JSONtoXRF(cxp[1])
+  }[cxp[0]]();
   xrf[0] = newXRF[0];
   xrf[1] = newXRF[1];
   xrf[2] = newXRF[2];
@@ -128,31 +135,31 @@ const reduceCXP = (xrf, rstate) => {  // xrf ["+x", cxp, v0, v1]
 };  // reduceCXP
 const reduceClone = (xrf, rstate) => {
   const [pc, sx, v0, v1] = xrf;
-  const newXRF = ({
-    "Sxy": () => ["Sxy", sx[1], cloneXRF(sx[2]), cloneXRF(sx[3])],
-    "Sx": () => ["Sx", sx[1], cloneXRF(sx[2]), void 0],
-    "S": () => ["S", sx[1], void 0, void 0],
-    "Kx": () => ["Kx", sx[1], cloneXRF(sx[2]), void 0],
-    "K": () => ["K", sx[1], void 0, void 0],
-    "Cxy": () => ["Cxy", sx[1], cloneXRF(sx[2]), cloneXRF(sx[3])],
-    "Cx": () => ["Cx", sx[1], cloneXRF(sx[2]), void 0],
-    "C": () => ["C", sx[1], void 0, void 0],
-    "Bxy": () => ["Bxy", sx[1], cloneXRF(sx[2]), cloneXRF(sx[3])],
-    "Bx": () => ["Bx", sx[1], cloneXRF(sx[2]), void 0],
-    "B": () => ["B", sx[1], void 0, void 0],
-    "I": () => ["I", void 0, void 0, void 0],
-    "app": () => ["app", cloneXRF(sx[1]), cloneXRF(sx[2]), void 0],
-    "var": () => ["var", sx[1], void 0, void 0],
+  const newXRF = {
+    Sxy: () => ["Sxy", sx[1], cloneXRF(sx[2]), cloneXRF(sx[3])],
+    Sx: () => ["Sx", sx[1], cloneXRF(sx[2]), void 0],
+    S: () => ["S", sx[1], void 0, void 0],
+    Kx: () => ["Kx", sx[1], cloneXRF(sx[2]), void 0],
+    K: () => ["K", sx[1], void 0, void 0],
+    Cxy: () => ["Cxy", sx[1], cloneXRF(sx[2]), cloneXRF(sx[3])],
+    Cx: () => ["Cx", sx[1], cloneXRF(sx[2]), void 0],
+    C: () => ["C", sx[1], void 0, void 0],
+    Bxy: () => ["Bxy", sx[1], cloneXRF(sx[2]), cloneXRF(sx[3])],
+    Bx: () => ["Bx", sx[1], cloneXRF(sx[2]), void 0],
+    B: () => ["B", sx[1], void 0, void 0],
+    I: () => ["I", void 0, void 0, void 0],
+    app: () => ["app", cloneXRF(sx[1]), cloneXRF(sx[2]), void 0],
+    var: () => ["var", sx[1], void 0, void 0],
     "()": () => ["()", void 0, void 0, void 0],
-    "+x": ()=> ["+x", sx[1], void 0, void 0],
-    "+c": ()=> ["+c", sx[1], void 0, void 0],
-    "+b": ()=> ["+b", sx[1], void 0, void 0],
-    "+n": ()=> ["+n", sx[1], void 0, void 0],
-    "+s": ()=> ["+s", sx[1], void 0, void 0],
-    "+a": ()=> ["+a", sx[1], void 0, void 0],
-    "+j": ()=> ["+j", sx[1], void 0, void 0],
-    "-": ()=> ["-", sx[1], sx[2], sx[3]]
-  }[sx[0]])();
+    "+x": () => ["+x", sx[1], void 0, void 0],
+    "+c": () => ["+c", sx[1], void 0, void 0],
+    "+b": () => ["+b", sx[1], void 0, void 0],
+    "+n": () => ["+n", sx[1], void 0, void 0],
+    "+s": () => ["+s", sx[1], void 0, void 0],
+    "+a": () => ["+a", sx[1], void 0, void 0],
+    "+j": () => ["+j", sx[1], void 0, void 0],
+    "-": () => ["-", sx[1], sx[2], sx[3]]
+  }[sx[0]]();
   xrf[0] = newXRF[0];
   xrf[1] = newXRF[1];
   xrf[2] = newXRF[2];
@@ -160,54 +167,166 @@ const reduceClone = (xrf, rstate) => {
   return reduceOne(xrf, rstate);
 };  // reduceclone
 /*-------|---------|---------|---------|---------|--------*/
+// reduceVar replacs the variable with either one of:
+// - a CXP in library
+// - native function
+// - a combinator
+// otherwise, a undefined variable error
+const reduce_ltNum = (xrfXX, rstate) => {  // native func.
+  // xrfXX ["var", "ltNum", void 0, void 0]
+  //const [xxvr, xxvn, xxv0, xxv1] = xrfXX;
+  const [sc1, mc1, cnt1, apps1] = rstate;
+  const xrfX = apps1.pop();
+  if (xrfX != void 0) {
+    const [xap, xx, xy1, xv0] = xrfX;  // xx == xrfXX
+    const [xy2, [sc2, mc2, cnt2, apps2]] = reduceXRF(xy1, [sc1, mc1, cnt1, []]);
+    const jsonX = (sc2 == "DN" && mc2 == "IA") ? XRFtoJSON(xy1) : void 0;
+    if (typeof jsonX != "number") {
+      apps1.push(xrfX);
+      return [xrfXX, ["ER", "NV", cnt1, apps1]]
+    }
+    const xrf = apps1.pop();
+    if (xrf != void 0) {
+      const [ap, x, y1, v0] = xrf;  // x == xrfX
+      const [y2, [sc3, mc3, cnt3, apps3]] = reduceXRF(y1, [sc1, mc1, cnt2, []]);
+      const jsonY = (sc3 == "DN" && mc3 == "IA") ? XRFtoJSON(y1) : void 0;
+      if (typeof jsonY != "number") {
+        apps1.push(xrf);
+        apps1.push(xrfX);
+        return [xrfXX, ["ER", "NV", cnt1, apps1]]
+      }
+      xrf[0] = "+b";
+      xrf[1] = (jsonX < jsonY);
+      xrf[2] = void 0;
+      //xrf[3] = v0;
+      return [xrf, [sc1, mc1, cnt3, apps1]];
+    } else {  // insufficient arguments
+      apps1.push(xrfX);
+      return [xrfXX, ["DN", "IA", cnt1, apps1]];
+    }
+  } else {  // insufficient arguments
+    return [xrfXX, ["DN", "IA", cnt1, apps1]];
+  }
+};
+const nativeFunc = {
+  "ltNum": reduce_ltNum
+};
+const reduceVar = (xrf, rstate) => {  // "var"
+  const [sc, mc, cnt, apps] = rstate;
+  const v = xrf[1];
+  const ntv = nativeFunc[v];
+  const lib = library[v];
+  const rsNew = (ntv !== void 0 || lib !== void 0) ? ({
+    D0: () => ["DB", "D2", cnt, apps],
+    V0: () => ["DB", "V2", cnt, apps],
+    D1: () => [sc, "D0", cnt, apps],
+    V1: () => [sc, "V0", cnt, apps]
+  }[mc] ?? (() => rstate))() : rstate;
+  if (rsNew[0] != "OK")
+    return [xrf, rsNew];
+  if (ntv !== void 0) {
+    const [xrf2, [sc2, mc2, cnt2, apps2]] = ntv(xrf, rsNew);
+    if (sc2 != "ER" || mc2 != "NV" || lib === void 0)
+      return [xrf2, [sc2, mc2, cnt2, apps2]];
+    // fall down to library
+  }
+  if (lib !== void 0) {
+    const newXRF = CXPtoXRF(lib);
+    xrf[0] = newXRF[0];
+    xrf[1] = newXRF[1];
+    xrf[2] = newXRF[2];
+    xrf[3] = newXRF[3];
+    return reduceOne(xrf, rsNew);
+  } else {  // not in library
+    const comb = (v.match(/^[SKCB]/) ?? [null])[0];
+    const n = (v.slice(1).match(/^[0-9]+/) ?? [null])[0];
+    if (comb) {  // combinators with number
+      xrf[0] = comb;
+      xrf[1] = n ? +n : 1;
+      xrf[2] = void 0;
+      xrf[3] = void 0;
+      return reduceOne(xrf, rsNew);
+    } else if (v == "I") {  // I combinator
+      xrf[0] = "I";
+      xrf[1] = void 0;
+      xrf[2] = void 0;
+      xrf[3] = void 0;
+      return reduceOne(xrf, rsNew);
+    } else {  // undefined variable
+      return [xrf, ["ER", "UV", cnt, apps]];
+    }
+  }
+};  // reduceVar
+/*-------|---------|---------|---------|---------|--------*/
 // reduce JSON values as a part of XRF
+const stopAtNextComb = (xrf, rstate) => {
+  const [sc, mc, cnt, apps] = rstate;
+  if (mc == "D1") {
+    return [xrf, [sc, "D0", cnt, apps]];
+  } else {
+    return [xrf, rstate];
+  }
+};
 const reduceBool = (xrf, rstate) => {  // "+b"
   const [pb, b, v0, v1] = xrf;
-  if (b) {  // true
-    xrf[0] = "K";
-    xrf[1] = 1;
-    xrf[2] = void 0;
-  } else {  // false
-    xrf[0] = "Kx";
-    xrf[1] = 1;
-    xrf[2] = ["I", void 0, void 0, void 0];
-  }
+  const [sc, mc, cnt, apps] = rstate;
+  if (mc == "D0")  // stop for debugging
+    return [xrf, ["DB", "D2", cnt, apps]];
+  xrf[0] = (b) ? "K" : "Kx";
+  xrf[1] = 1;
+  xrf[2] = (b) ? void 0 : ["I", void 0, void 0, void 0];
   xrf[3] = void 0;
-  return reduceOne(xrf, rstate);
+  return stopAtNextComb(xrf, rstate);
 };
 const reduceNum = (xrf, rstate) => {  // "+n"
-  const [pn, num, v0, v1] = xrf;
   // (s| s b0 b1 b2 b3 b4 b5 b6 b7)  unsigned 8 bit intenger
   // => C (C (C (C (C (C (C (C I b0) b1) b2) b3) b4) b5) b6) b7
-  const i = ["I", void 0, void 0, void 0];
-  const k = ["K", 1, void 0, void 0];
-  const ki = ["Kx", 1, i, void 0];
-  let x = i;      // to become XRF
-  let n = num;  // integer
-  for (let c = 0; c < 8; ++c) {
-    x = ["Cxy", 1, x, ((n & 1) == 1) ? k : ki];
-    n >>= 1;
+  const [pn, num, v0, v1] = xrf;
+  const [sc, mc, cnt, apps] = rstate;
+  if (apps.length >= 1) {
+    if (mc == "D0")  // stop for debugging
+      return [xrf, ["DB", "D2", cnt, apps]];
+    const i = ["I", void 0, void 0, void 0];
+    const k = ["K", 1, void 0, void 0];
+    const ki = ["Kx", 1, i, void 0];
+    let x = i;    // to become XRF
+    let n = num;  // integer
+    for (let c = 0; c < 8; ++c) {
+      x = ["Cxy", 1, x, (n & 1) == 1 ? k : ki];
+      n >>= 1;
+    }
+    xrf[0] = x[0];
+    xrf[1] = x[1];
+    xrf[2] = x[2];
+    xrf[3] = x[3];
+    return stopAtNextComb(xrf, rstate);
+  } else {  // insufficient arguments
+    // end reduction without converting to combinators
+    // this helps XRFtoJSON and native functions i.e. ltNum
+    return [xrf, ["DN", "IA", cnt, apps]];
   }
-  xrf[0] = x[0];
-  xrf[1] = x[1];
-  xrf[2] = x[2];
-  xrf[3] = x[3];
-  return reduceOne(xrf, rstate);
 };  // reduceNum
-const reduceStr = (xrf, rstate) => {  // xrf ["+s", str, v0, v1]
+const reduceStr = (xrf, rstate) => {
+  // xrf ["+s", str, v0, v1]
   const [ps, str, v0, v1] = xrf;
+  const [sc, mc, cnt, apps] = rstate;
+  if (mc == "D0")  // stop for debugging
+    return [xrf, ["DB", "D2", cnt, apps]];
   const u8a = new TextEncoder().encode(str);
-  xrf[0] = "+a";  // JSON array
-  xrf[1] = [...u8a];  // convert it into an array
+  xrf[0] = "+a"; // JSON array
+  xrf[1] = [...u8a]; // convert it into an array
   //xrf[2] = v0;
   //xrf[3] = v1;
-  return reduceArray(xrf, rstate);
+  return stopAtNextComb(xrf, rstate);
 };
-const reduceArray = (xrf, rstate) => {  // xrf ["+a", array, v0, v1]
-  const [pa, ary, v0, v1] = xrf;
+const reduceArray = (xrf, rstate) => {  // "+a"
   //    [e0, e1, e2]
   // => (f|x| f e0; f|x| f e1; f|x| e2; f|x| x)
   // => B K (C (C I e0); B K; C (C I e1); B K; C (C I e2); K I)
+  const [pa, ary, v0, v1] = xrf;
+  const [sc, mc, cnt, apps] = rstate;
+  if (mc == "D0")  // stop for debugging
+    return [xrf, ["DB", "D2", cnt, apps]];
   if (ary.length > 0) {
     const [e0, ...rest] = ary;
     xrf[0] = "Bxy";
@@ -228,63 +347,15 @@ const reduceArray = (xrf, rstate) => {  // xrf ["+a", array, v0, v1]
     xrf[2] = ["I", void 0, void 0, void 0];
     xrf[3] = void 0;
   }
-  return reduceOne(xrf, rstate);
+  return stopAtNextComb(xrf, rstate);
 };  // reduceArray
 /*-------|---------|---------|---------|---------|--------*/
-const reduceVar = (xrf, rstate) => {  // "var"
-  const [sc, mc, cnt, apps] = rstate;
-  const v = xrf[1];
-  const fn = library[v];
-  if (fn !== void 0) {
-    const rsNew = ({
-      "D0": () => ["DN", "D2", cnt, apps],
-      "V0": () => ["DN", "V2", cnt, apps],
-      "D1": () => [sc, "D0", cnt, apps],
-      "V1": () => [sc, "V0", cnt, apps]
-    }[mc] ?? (() => rstate))();
-    if (rsNew[0] != "OK")
-      return [xrf, rsNew];
-    const newXRF = CXPtoXRF(fn);
-    xrf[0] = newXRF[0];
-    xrf[1] = newXRF[1];
-    xrf[2] = newXRF[2];
-    xrf[3] = newXRF[3];
-    return reduceOne(xrf, rsNew);
-  } else {  // not in library
-    const comb = (v.match(/^[SKCB]/) ?? [null])[0];
-    const n = (v.slice(1).match(/^[0-9]+/) ?? [null])[0];
-    if (comb) {  // combinators
-      xrf[0] = comb;
-      xrf[1] = n ? +n : 1;
-      xrf[2] = void 0;
-      xrf[3] = void 0;
-      return reduceOne(xrf, rstate);
-    } else if (v == "I") {
-      xrf[0] = "I";
-      xrf[1] = void 0;
-      xrf[2] = void 0;
-      xrf[3] = void 0;
-      return reduceOne(xrf, rstate);
-    } else {  // undefined variable
-      return [xrf, ["ER", "UV", cnt, apps]];
-    }
-  }
-};  // reduceVar
-/*-------|---------|---------|---------|---------|--------*/
-const stopAtNextComb = (xrf, rstate) => {
-  const [sc, mc, cnt, apps] = rstate;
-  if (mc == "D1") {
-    return [xrf, [sc, "D0", cnt, apps]];
-  } else {
-    return [xrf, rstate];
-  }
-};
 const reduceSxy = (xrfX, rstate) => {
   const [sc, mc, cnt, apps] = rstate;
   const xrf = apps.pop();
   if (xrf != void 0) {
     if (mc == "D0")  // stop for debugging
-      return [xrf, ["DN", "D2", cnt, apps]];
+      return [xrf, ["DB", "D2", cnt, apps]];
     const [app, x, y, v1] = xrf;  // x == xrfX
     const [sxy, xn, xx, xy] = xrfX;
     if (xn >= 2) {
@@ -317,7 +388,8 @@ const reduceSx = (xrfX, rstate) => {
     xrf[2] = xx;
     xrf[3] = y;
     return reduceSxy(xrf, rstate);
-  } else {  // insufficient arguments
+  } else {
+    // insufficient arguments
     return [xrfX, ["DN", "IA", cnt, apps]];
   }
 };
@@ -341,7 +413,7 @@ const reduceKx = (xrfX, rstate) => {
   const xrf = apps.pop();
   if (xrf != void 0) {
     if (mc == "D0")  // stop for debugging
-      return [xrf, ["DN", "D2", cnt, apps]];
+      return [xrf, ["DB", "D2", cnt, apps]];
     const [app, x, y, v1] = xrf;  // x == xrfX
     const [kx, xn, xx, xv1] = xrfX;
     if (xn >= 2) {
@@ -381,7 +453,7 @@ const reduceCxy = (xrfX, rstate) => {
   const xrf = apps.pop();
   if (xrf != void 0) {
     if (mc == "D0")  // stop for debugging
-      return [xrf, ["DN", "D2", cnt, apps]];
+      return [xrf, ["DB", "D2", cnt, apps]];
     const [app, x, y, v1] = xrf;  // x == xrfX
     const [cxy, xn, xx, xy] = xrfX;
     if (xn >= 2) {
@@ -402,7 +474,7 @@ const reduceCxy = (xrfX, rstate) => {
   } else {  // insufficient arguments
     return [xrfX, ["DN", "IA", cnt, apps]];
   }
-};
+};  // reduceCxy
 const reduceCx = (xrfX, rstate) => {
   const [sc, mc, cnt, apps] = rstate;
   const xrf = apps.pop();
@@ -438,7 +510,7 @@ const reduceBxy = (xrfX, rstate) => {
   const xrf = apps.pop();
   if (xrf != void 0) {
     if (mc == "D0")  // stop for debugging
-      return [xrf, ["DN", "D2", cnt, apps]];
+      return [xrf, ["DB", "D2", cnt, apps]];
     const [app, x, y, v1] = xrf;  // x == xrfX
     const [bxy, xn, xx, xy] = xrfX;
     if (xn >= 2) {
@@ -458,19 +530,20 @@ const reduceBxy = (xrfX, rstate) => {
   } else {  // insufficient arguments
     return [xrfX, ["DN", "IA", cnt, apps]];
   }
-};
+};  // reduceBxy
 const reduceBx = (xrfX, rstate) => {
   const [sc, mc, cnt, apps] = rstate;
   const xrf = apps.pop();
   if (xrf != void 0) {
-    const [app, x, y, v1] = xrf;  // x == xrfX
+    const [app, x, y, v1] = xrf;   // x == xrfX
     const [bx, xn, xx, xv1] = xrfX;
     xrf[0] = "Bxy";
     xrf[1] = xn;
     xrf[2] = xx;
     xrf[3] = y;
     return reduceBxy(xrf, rstate);
-  } else {  // insufficient arguments
+  } else {
+    // insufficient arguments
     return [xrfX, ["DN", "IA", cnt, apps]];
   }
 };
@@ -485,7 +558,8 @@ const reduceB = (xrfX, rstate) => {
     //xrf[2] = y;
     //xrf[3] = v1;
     return reduceBx(xrf, rstate);
-  } else {  // insufficient arguments
+  } else {
+    // insufficient arguments
     return [xrfX, ["DN", "IA", cnt, apps]];
   }
 };
@@ -494,7 +568,7 @@ const reduceI = (xrfX, rstate) => {
   const xrf = apps.pop();
   if (xrf != void 0) {
     if (mc == "D0")  // stop for debugging
-      return [xrf, ["DN", "D2", cnt, apps]];
+      return [xrf, ["DB", "D2", cnt, apps]];
     const [app, x, y, v1] = xrf;  // x == xrfX
     xrf[0] = y[0];
     xrf[1] = y[1];
@@ -505,7 +579,8 @@ const reduceI = (xrfX, rstate) => {
     return [xrfX, ["DN", "IA", cnt, apps]];
   }
 };
-const reduceApp = (xrf, rstate) => {  // xrf ["app", x, y, v0]
+/*-------|---------|---------|---------|---------|--------*/
+const reduceApp = (xrf, rstate) => {  // "app"
   const [sc, mc, cnt, apps] = rstate;
   apps.push(xrf);
   return reduceOne(xrf[1], rstate);
@@ -522,94 +597,105 @@ const reduceOutput = (xrf, rstate) => {
   const [sc, mc, cnt, apps] = rstate;
   return [xrf, ["DN", "OT", cnt, apps]];
 };
-const reduceOne = (xrf, rstate) => ({  // reduce one step
-  "Sxy": reduceSxy,
-  "Sx": reduceSx,
-  "S": reduceS,
-  "Kx": reduceKx,
-  "K": reduceK,
-  "Cxy": reduceCxy,
-  "Cx": reduceCx,
-  "C": reduceC,
-  "Bxy": reduceBxy,
-  "Bx": reduceBx,
-  "B": reduceB,
-  "I": reduceI,
-  "app": reduceApp,
-  "var": reduceVar,   // variables
-  "()": reducePH,     // placeholder
-  "+x": reduceCXP,    // source CXP
-  "+c": reduceClone,  // cloning XRF
-  "+n": reduceNum,    // JSON numbers
-  "+s": reduceStr,    // JSON strings
-  "+a": reduceStr,    // JSON arrays
-  "+j": reduceJSON,   // other JSON types
-  "-": reduceOutput   // sentinel to output
-}[xrf[0]])(xrf, rstate);
-const reduceXRF = (xrfOrg, rsOrg = ["OK", "ND", 0, []]) => {
+const reduceMap = {  // reduce one step
+  Sxy: reduceSxy,
+  Sx: reduceSx,
+  S: reduceS,
+  Kx: reduceKx,
+  K: reduceK,
+  Cxy: reduceCxy,
+  Cx: reduceCx,
+  C: reduceC,
+  Bxy: reduceBxy,
+  Bx: reduceBx,
+  B: reduceB,
+  I: reduceI,
+  app: reduceApp,
+  var: reduceVar, // variables
+  "()": reducePH, // placeholder
+  "+x": reduceCXP, // source CXP
+  "+c": reduceClone, // cloning XRF
+  "+b": reduceBool, // JSON boolean
+  "+n": reduceNum, // JSON numbers
+  "+s": reduceStr, // JSON strings
+  "+a": reduceArray, // JSON arrays
+  "+j": reduceJSON, // other JSON types
+  "-": reduceOutput // sentinel to output
+};
+const reduceOne = (xrf, rstate) => reduceMap[xrf[0]](xrf, rstate);
+const reduceXRF = (xrfOrg, rsOrg = ["OK", "ND", 10000, []]) => {
   let [xrf, rstate] = reduceOne(xrfOrg, rsOrg);
   while (rstate[0] == "OK") {  // reduction loop
-    if (++rstate[2] >= 10000) {  // too many reductions
+    if (--rstate[2] <= 0) {  // too many reductions
       const [sc, mc, cnt, apps] = rstate;
       return [xrf, ["ER", "EC", cnt, apps]];
     }
     [xrf, rstate] = reduceOne(xrf, rstate);
   }
   return [xrf, rstate];
-}
-
-const XRFtoCXP = (xrf) => ({
-  "Sxy": () => ["Sxy", xrf[1], XRFtoCXP(xrf[2]), XRFtoCXP(xrf[3])],
-  "Sx": () => ["Sx", xrf[1], XRFtoCXP(xrf[2])],
-  "S": () => ["S", xrf[1]],
-  "Kx": () => ["Kx", xrf[1], XRFtoCXP(xrf[2])],
-  "K": () => ["K", xrf[1]],
-  "Cxy": () => ["Cxy", xrf[1], XRFtoCXP(xrf[2]), XRFtoCXP(xrf[3])],
-  "Cx": () => ["Cx", xrf[1], XRFtoCXP(xrf[2])],
-  "C": () => ["C", xrf[1]],
-  "Bxy": () => ["Bxy", xrf[1], XRFtoCXP(xrf[2]), XRFtoCXP(xrf[3])],
-  "Bx": () => ["Bx", xrf[1], XRFtoCXP(xrf[2])],
-  "B": () => ["B", xrf[1]],
-  "I": () => ["I"],
-  "app": () => ["app", XRFtoCXP(xrf[1]), XRFtoCXP(xrf[2])],
-  "var": () => ["var", xrf[1]],
-  "()": () => ["()"],
-  "+x": () => xrf[1],
-  "+c": () => XRFtoCXP(xrf[1]),
-  "+b": () => ["+", xrf[1]],
-  "+n": () => ["+", xrf[1]],
-  "+s": () => ["+", xrf[1]],
-  "+a": () => ["+", xrf[1]],
-  "+j": () => ["+", xrf[1]]
-}[xrf[0]])();
-const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
+};
+/*-------|---------|---------|---------|---------|--------*/
+const XRFtoCXP = (xrf) =>
+  ({
+    Sxy: () => ["Sxy", xrf[1], XRFtoCXP(xrf[2]), XRFtoCXP(xrf[3])],
+    Sx: () => ["Sx", xrf[1], XRFtoCXP(xrf[2])],
+    S: () => ["S", xrf[1]],
+    Kx: () => ["Kx", xrf[1], XRFtoCXP(xrf[2])],
+    K: () => ["K", xrf[1]],
+    Cxy: () => ["Cxy", xrf[1], XRFtoCXP(xrf[2]), XRFtoCXP(xrf[3])],
+    Cx: () => ["Cx", xrf[1], XRFtoCXP(xrf[2])],
+    C: () => ["C", xrf[1]],
+    Bxy: () => ["Bxy", xrf[1], XRFtoCXP(xrf[2]), XRFtoCXP(xrf[3])],
+    Bx: () => ["Bx", xrf[1], XRFtoCXP(xrf[2])],
+    B: () => ["B", xrf[1]],
+    I: () => ["I"],
+    app: () => ["app", XRFtoCXP(xrf[1]), XRFtoCXP(xrf[2])],
+    var: () => ["var", xrf[1]],
+    "()": () => ["()"],
+    "+x": () => xrf[1],
+    "+c": () => XRFtoCXP(xrf[1]),
+    "+b": () => ["+", xrf[1]],
+    "+n": () => ["+", xrf[1]],
+    "+s": () => ["+", xrf[1]],
+    "+a": () => ["+", xrf[1]],
+    "+j": () => ["+", xrf[1]]
+  }[xrf[0]]());
+const XRFtoJSON = (xrf0) => {
+  // convert XRF to JSON (or returns void 0)
+  const json = ({
+    "+b": () => xrf0[1],
+    "+n": () => xrf0[1],
+    "+s": () => xrf0[1],
+    "+a": () => xrf0[1],
+    "+j": () => xrf0[1]
+  }[xrf0[0]] ?? (() => void 0))();
+  if (json !== void 0) {  // JSON number
+    return json;
+  }
   // recognize output by placing a sentinel
   const xrf1 = [  // clone CXP so that it does not affect to the original XRF
     "app", cloneXRF(xrf0), [
-      "-", 0, void 0, void 0    // sentinel#0 to output
+      "-", 0, void 0, void 0  // sentinel#0 to output
     ], void 0
   ];
   let [[sentl, sentlData], [sc, mc, cnt, apps]] = reduceXRF(xrf1);  // internal for output
-  if (sc == "ER")
-    return void 0;
+  if (sc != "DN") return void 0;
 
   // first check whether it is a number such as:
   //   (s| s K (K I) (K I) (K I) (K I) (K I) K (K I))
   //   => 65 = 0x41 = 0b01000001 = 'A'
-  if (sc == "DN" && mc == "OT" && apps.length == 8) {
-    // it may be a number
-    let u8 = 0;  // unsigned 8 bits integer
+  if (sc == "DN" && mc == "OT" && apps.length == 8) {  // it may be a number
+    let u8 = 0; // unsigned 8 bits integer
     let bc = 0;
     for (let c = xrf1; c[0] == "app"; c = c[1], ++bc) {
-      const [[sl, sld], [,,, ap]] = reduceXRF([  // internal for output
+      const [[sl, sld], [, , , ap]] = reduceXRF([  // internal for output
         "app", [
-          "app",
-          cloneXRF(c[2]),
-          ["-", 1, void 0, void 0],  // sentinel to output 1
-          void 0
-        ],
-        ["-", 0, void 0, void 0],  // sentinel to output 0
-        void 0
+          "app", cloneXRF(c[2]), [
+            "-", 1, void 0, void 0   // sentinel to output 1
+          ], void 0
+        ], [
+          "-", 0, void 0, void 0  // sentinel to output 0
+        ], void 0
       ]);
       if (sl === "-" && ap.length == 0) {
         u8 = (u8 << 1) | sld;  // bitwise shift and or
@@ -630,16 +716,16 @@ const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
     ], void 0
   ];
   [[sentl, sentlData], [sc, mc, cnt, apps]] = reduceXRF(xrf2);  // internal for output
-  if (sc == "ER")
-    return void 0;
+  if (sc != "DN") return void 0;
 
   if (sc == "DN" && mc == "OT") {
     if (apps.length == 0) {  // boolean or an end of array (f|x| x)
-      return (sentlData  == 0);  // 0: true, 1: false
+      return sentlData == 0;  // 0: true, 1: false
     } else {
       const [app, x, y] = xrf2;
       const [appX, xx, xy] = x;
-      if (apps.length == 2 && app == "app" && appX == "app" && sentlData == 0) {  // f|x| f data subArray
+      if (apps.length == 2 && app == "app" && appX == "app" && sentlData == 0) {
+        // f|x| f data subArray
         const data = AryToStr(XRFtoJSON(xy));
         if (data !== void 0) {
           const subAr = XRFtoJSON(y);
@@ -663,7 +749,7 @@ const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
           "app", [
             "app", [
               "app", [
-                "app", xrf2, [ // sentinel#0 and #1
+                "app", xrf2, [  // sentinel#0 and #1
                   "-", 2, void 0, void 0  // sentinel#2 to output
                 ], void 0
               ], [
@@ -686,8 +772,7 @@ const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
     ], void 0
   ];  // xrf3
   [[sentl, sentlData], [sc, mc, cnt, apps]] = reduceXRF(xrf3);  // internal for output
-  if (sc == "ER")
-    return void 0;
+  if (sc != "DN") return void 0;
 
   if (sc == "DN" && mc == "OT") {
     const ret = [
@@ -695,10 +780,15 @@ const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
         const [app, x, y] = xrf3;
         const [appX, xx, xy] = x;
         const [appXX, xxx, xxy] = xx;
-        if (apps.length == 3 && app == "app" && appX == "app" && appXX == "app") {
+        if (
+          apps.length == 3 &&
+          app == "app" &&
+          appX == "app" &&
+          appXX == "app"
+        ) {
           const lcxV = AryToStr(XRFtoJSON(xxy));  // variable name
-          const lcxX = XRFtoJSON(xy);  // expression
-          const lcxVF = XRFtoJSON(y);  // array of string
+          const lcxX = XRFtoJSON(xy); // expression
+          const lcxVF = XRFtoJSON(y); // array of string
           if (lcxV != void 0 && lcxX != void 0 && lcxVF != void 0)
             return ["LCX:lam", lcxV, lcxX, lcxVF];
         }
@@ -708,10 +798,15 @@ const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
         const [app, x, y] = xrf3;
         const [appX, xx, xy] = x;
         const [appXX, xxx, xxy] = xx;
-        if (apps.length == 3 && app == "app" && appX == "app" && appXX == "app") {
+        if (
+          apps.length == 3 &&
+          app == "app" &&
+          appX == "app" &&
+          appXX == "app"
+        ) {
           const lcxX = XRFtoJSON(xxy);  // expression x
-          const lcxY = XRFtoJSON(xy);  // expression y
-          const lcxVF = XRFtoJSON(y);  // array of string
+          const lcxY = XRFtoJSON(xy);   // expression y
+          const lcxVF = XRFtoJSON(y);   // array of string
           if (lcxX != void 0 && lcxY != void 0 && lcxVF != void 0)
             return ["LCX:app", lcxX, lcxY, lcxVF];
         }
@@ -721,8 +816,7 @@ const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
         const [app, x, y] = xrf3;
         if (apps.length == 1 && app == "app") {
           const lcxV = toStr(XRFtoJSON(y));  // variable name
-          if (lcxV != void 0)
-            return ["LCX:var", lcxV];
+          if (lcxV != void 0) return ["LCX:var", lcxV];
         }
         return void 0;
       },
@@ -736,8 +830,7 @@ const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
         const [app, x, y] = xrf3;
         if (apps.length == 1 && app == "app") {
           const lcxN = XRFtoJSON(y);  // n
-          if (lcxN != void 0)
-            return ["LCX:S", lcxN];
+          if (lcxN != void 0) return ["LCX:S", lcxN];
         }
         return void 0;
       },
@@ -745,8 +838,7 @@ const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
         const [app, x, y] = xrf3;
         if (apps.length == 1 && app == "app") {
           const lcxN = XRFtoJSON(y);  // n
-          if (lcxN != void 0)
-            return ["LCX:K", lcxN];
+          if (lcxN != void 0) return ["LCX:K", lcxN];
         }
         return void 0;
       },
@@ -754,8 +846,7 @@ const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
         const [app, x, y] = xrf3;
         if (apps.length == 1 && app == "app") {
           const lcxN = XRFtoJSON(y);  // n
-          if (lcxN != void 0)
-            return ["LCX:C", lcxN];
+          if (lcxN != void 0) return ["LCX:C", lcxN];
         }
         return void 0;
       },
@@ -763,8 +854,7 @@ const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
         const [app, x, y] = xrf3;
         if (apps.length == 1 && app == "app") {
           const lcxN = XRFtoJSON(y);  // n
-          if (lcxN != void 0)
-            return ["LCX:B", lcxN];
+          if (lcxN != void 0) return ["LCX:B", lcxN];
         }
         return void 0;
       },
@@ -775,40 +865,58 @@ const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
         return void 0;
       }
     ][sentlData]();
-    if (ret != void 0)
-      return ret;
+    if (ret != void 0) return ret;
   }
   return void 0;
 };
 
 const AryToStr = (json) => {
-  if (outputStr && toString.call(json) == "[object Array]" &&
-      json.reduce((a, e) => a && typeof e == "number", true)) {
+  if (
+    outputStr &&
+    toString.call(json) == "[object Array]" &&
+    json.reduce((a, e) => a && typeof e == "number", true)
+  ) {
     const u8a = new Uint8Array(json);
-    return (new TextDecoder()).decode(u8a);  // UTF-8
+    return new TextDecoder().decode(u8a); // UTF-8
   } else {
     return json;
   }
-}
-const NtoStr = (n) => (n == 1) ? "" : "" + n;
-const CXPtoStr = (cxp) => ({
-  "Sxy": () => "(S" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + " " + CXPtoStr(cxp[3]) + ")",
-  "Sx": () => "(S" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  "S": () => "S" + NtoStr(cxp[1]),
-  "Kx": () => "(K" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  "K": () => "K" + NtoStr(cxp[1]),
-  "Cxy": () => "(C" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + " " + CXPtoStr(cxp[3]) + ")",
-  "Cx": () => "(C" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  "C": () => "C" + NtoStr(cxp[1]),
-  "Bxy": () => "(B" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + " " + CXPtoStr(cxp[3]) + ")",
-  "Bx": () => "(B" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  "B": () => "B" + NtoStr(cxp[1]),
-  "I": () => "I",
-  "app": () => "(" + CXPtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  "var": () => cxp[1],
-  "()": () => "()",
-  "+": () => JSON.stringify(cxp[1])
-}[cxp[0]])();
+};
+const NtoStr = (n) => (n == 1 ? "" : "" + n);
+const CXPtoStr = (cxp) =>
+  ({
+    Sxy: () => "(S" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + " " +
+                                             CXPtoStr(cxp[3]) + ")",
+    Sx: () => "(S" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+    S: () => "S" + NtoStr(cxp[1]),
+    Kx: () => "(K" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+    K: () => "K" + NtoStr(cxp[1]),
+    Cxy: () =>
+      "(C" +
+      NtoStr(cxp[1]) +
+      " " +
+      CXPtoStr(cxp[2]) +
+      " " +
+      CXPtoStr(cxp[3]) +
+      ")",
+    Cx: () => "(C" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+    C: () => "C" + NtoStr(cxp[1]),
+    Bxy: () =>
+      "(B" +
+      NtoStr(cxp[1]) +
+      " " +
+      CXPtoStr(cxp[2]) +
+      " " +
+      CXPtoStr(cxp[3]) +
+      ")",
+    Bx: () => "(B" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+    B: () => "B" + NtoStr(cxp[1]),
+    I: () => "I",
+    app: () => "(" + CXPtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+    var: () => cxp[1],
+    "()": () => "()",
+    "+": () => JSON.stringify(cxp[1])
+  }[cxp[0]]());
 const XRFtoComb = (xrf) => {  // stringify XRF in combinator form
   if (outputComb) {
     return CXPtoStr(XRFtoCXP(xrf));
@@ -819,8 +927,7 @@ const XRFtoComb = (xrf) => {  // stringify XRF in combinator form
 const XRFtoStr = (xrf) => {  // stringify XRF in JSON
   if (outputJSON) {
     const json = AryToStr(XRFtoJSON(xrf));
-    if (json !== void 0)
-      return json;
+    if (json !== void 0) return json;
   }
   return XRFtoComb(xrf);
 };
@@ -834,7 +941,7 @@ const nodeToText = (nd) => {
     case "br":
       return "\n" + nodesToText(nd.childNodes);
     default:
-      if (nd.childNodes != null ) {
+      if (nd.childNodes != null) {
         return nodesToText(nd.childNodes);
       } else {
         return "";
@@ -843,7 +950,7 @@ const nodeToText = (nd) => {
 };
 const nodesToText = (ns) => {
   let t = "";
-  ns.forEach(nd => {
+  ns.forEach((nd) => {
     t += nodeToText(nd);
   });
   return t;
@@ -855,15 +962,14 @@ const pastePlainText = (e) => {
   selection.deleteFromDocument();
   const range = selection.getRangeAt(0);
   let nodeIns = range.startContainer;  // node to insert text
-  let offsetIns = range.startOffset;  // offset to insert text in case of text node
+  let offsetIns = range.startOffset;   // offset to insert text in case of text node
   let textRemain = void 0;
   while (text.length > 0) {
     const line = (text.match(/^[^\r\n]+/) ?? [""])[0];
     if (line.length > 0) {
       if (nodeIns.nodeType == Node.TEXT_NODE) {
         const nodeText = nodeIns.textContent;
-        if (textRemain === void 0)
-          textRemain = nodeText.slice(offsetIns);
+        if (textRemain === void 0) textRemain = nodeText.slice(offsetIns);
         const newText = nodeText.slice(0, offsetIns).concat(line);
         nodeIns.textContent = newText;
         offsetIns = newText.length;
@@ -871,12 +977,10 @@ const pastePlainText = (e) => {
         const newNode = document.createTextNode(line);
         if (nodeIns.nodeName.toLowerCase() == "pre")
           nodeIns.appendChild(newNode);
-        else
-          nodeIns.parentNode.insertBefore(newNode, nodeIns.nextSibling);
+        else nodeIns.parentNode.insertBefore(newNode, nodeIns.nextSibling);
         nodeIns = newNode;
         offsetIns = line.length;
-        if (textRemain === void 0)
-          textRemain = "";
+        if (textRemain === void 0) textRemain = "";
       }
       text = text.slice(line.length);
     }
@@ -885,8 +989,7 @@ const pastePlainText = (e) => {
       const newNode = document.createElement("br");
       nodeIns.parentNode.insertBefore(newNode, nodeIns.nextSibling);
       nodeIns = newNode;
-      if (textRemain === void 0)
-          textRemain = "";
+      if (textRemain === void 0) textRemain = "";
       text = text.slice(cr.length);
     }
   }
@@ -909,7 +1012,7 @@ const pastePlainText = (e) => {
 
 document.addEventListener("DOMContentLoaded", () => {
   const elemCode = document.getElementById("code");
-  elemCode.textContent = "";  //"         1         2         3         4         5         6\n123456789012345678901234567890123456789012345678901234567890";
+  elemCode.textContent = ""; //"         1         2         3         4         5         6\n123456789012345678901234567890123456789012345678901234567890";
   elemCode.addEventListener("paste", pastePlainText);
   const elemInput = document.getElementById("input");
   elemInput.textContent = "";
@@ -919,15 +1022,13 @@ document.addEventListener("DOMContentLoaded", () => {
   elemInput.addEventListener("paste", pastePlainText);
   const elemOutput = document.getElementById("output");
   const elemOutputResult = document.getElementById("output-result");
-  const elemJSON = document.getElementById('outputJSON');
-  const elemCXP = document.getElementById('StringfyCXP');
-  const elemStr = document.getElementById('outputStr');
-  const elemC = document.getElementById('LXP');
-  const elemNext = document.getElementById('reduceNext');
-  const elemReset = document.getElementById('reduceReset');
-  const elemCopy = document.getElementById('copyToClipboard');
-
-  
+  const elemJSON = document.getElementById("outputJSON");
+  const elemCXP = document.getElementById("StringfyCXP");
+  const elemStr = document.getElementById("outputStr");
+  const elemC = document.getElementById("LXP");
+  const elemNext = document.getElementById("reduceNext");
+  const elemReset = document.getElementById("reduceReset");
+  const elemCopy = document.getElementById("copyToClipboard");
   const LXPStrToExpr = (lxp) => ({
     "lam": () => [  // B K3 (C (C I v) x)
       "Bxy", 1, [
@@ -937,7 +1038,7 @@ document.addEventListener("DOMContentLoaded", () => {
           "Cxy", 1, [
             "I", void 0, void 0, void 0
           ], [
-            "+", lxp[1], void 0, void 0    // v
+            "+", lxp[1], void 0, void 0  // v
           ]
         ], LXPStrToExpr(lxp[2])  // x
       ]
@@ -964,15 +1065,13 @@ document.addEventListener("DOMContentLoaded", () => {
         ]
       ], void 0
     ],
-    "()": () => ["Kx", 3, ["I"]]       // K3 I
-  })[lxp[0]]();
-  
-  
+    "()": () => ["Kx", 3, ["I"]]  // K3 I
+  }[lxp[0]]());
   const updateOutput = (debug = false) => {
     let data;
     const code = nodesToText(elemCode.childNodes);
     const inputElem = nodesToText(elemInput.childNodes);
- 
+
     if (!debug || debugState === void 0) {
       const input2Elem = nodesToText(elemInput2.childNodes);
       let input, input2;
@@ -982,7 +1081,7 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
           data = LXPtoCXP(pegToLXP(parse(code)));
         } catch {
-          data = void 0; // ignore input errors
+          data = void 0;  // ignore input errors
         }
       }
       try {
@@ -991,12 +1090,10 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
           if (forceLXP) {
             input = LXPStrToExpr(pegToLXP(parse(inputElem)));
-          } else 
-            input = LXPtoCXP(pegToLXP(parse(inputElem)));
-          if (input[0] == "()")
-            input = void 0;
+          } else input = LXPtoCXP(pegToLXP(parse(inputElem)));
+          if (input[0] == "()") input = void 0;
         } catch {
-          input = void 0; // ignore input errors
+          input = void 0;  // ignore input errors
         }
       }
       try {
@@ -1004,39 +1101,33 @@ document.addEventListener("DOMContentLoaded", () => {
       } catch {
         try {
           input2 = LXPtoCXP(pegToLXP(parse(input2Elem)));
-          if (input2[0] == "()")
-            input2 = void 0;
+          if (input2[0] == "()") input2 = void 0;
         } catch {
-          input2 = void 0; // ignore input errors
+          input2 = void 0;  // ignore input errors
         }
       }
       if (data !== void 0) {
         //try {
-          const xrf = (!(!input) || input === false) ? (  // xrf to reduce
-            (!(!input2) || input2 === false) ? [
-              "app", [
-                "app",
-                CXPtoXRF(data),
-                CXPtoXRF(input),
-                void 0
-              ],
-              CXPtoXRF(input2),
-              void 0
-            ] : [
-              "app",
-              CXPtoXRF(data),
-              CXPtoXRF(input),
-              void 0
-            ]
-          ) : CXPtoXRF(data);  // no input if input is not given
-          if (debug) {
-            debugState = ["OK", "D0", 0, [xrf]];  // enter debug mode
-            data = XRFtoComb(xrf);
-          } else {
-            const [,[sc,mc,,]] = reduceXRF(xrf);  // reduce external code (subject to debugging)
-            elemOutputResult.textContent = sc + " " + mc;
-            data = XRFtoStr(xrf);
-          }
+        const xrf =
+          !!input || input === false  // xrf to reduce
+            ? !!input2 || input2 === false
+              ? [
+                  "app",
+                  ["app", CXPtoXRF(data), CXPtoXRF(input), void 0],
+                  CXPtoXRF(input2),
+                  void 0
+                ]
+              : ["app", CXPtoXRF(data), CXPtoXRF(input), void 0]
+            : CXPtoXRF(data);  // no input if input is not given
+        if (debug) {
+          debugState = ["OK", "D1", 10000, [xrf]];  // enter debug mode
+          elemOutputResult.textContent = "Start debugging";
+          data = XRFtoComb(xrf);
+        } else {
+          const [, [sc, mc, ,]] = reduceXRF(xrf);  // reduce external code (subject to debugging)
+          elemOutputResult.textContent = sc + " " + mc;
+          data = XRFtoStr(xrf);
+        }
         //} catch {
         //  data = void 0;
         //  nextCXP = void 0;
@@ -1044,17 +1135,19 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } else {  // debugState !== void 0
       //try {
-        const xrf = debugState[3].pop();
-        const [xrfNew, [sc, mc, cnt, apps]] = reduceXRF(xrf, debugState);  // reduce external code (subject to debugging)
-        elemOutputResult.textContent = sc + " " + mc;
-        apps.push(xrfNew);
-        if (sc == "DN" && mc == "D2") {  // middle of debugging
-          debugState = ["OK", "D1", cnt, apps];
-          data = XRFtoComb(xrf);
-        } else {  // finished debugging
-          debugState = void 0;
-          data = XRFtoStr(xrf);
-        }
+      const xrf = debugState[3].pop();
+      const [xrfNew, [sc, mc, cnt, apps]] = reduceXRF(xrf, debugState);  // reduce external code (subject to debugging)
+      apps.push(xrfNew);
+      elemOutputResult.textContent = sc + " " + mc;
+      if (sc == "DB" && mc == "D2") {
+        // middle of debugging
+        debugState = ["OK", "D1", cnt, apps];
+        data = XRFtoComb(apps[0]);
+      } else {
+        // finished debugging
+        debugState = void 0;
+        data = XRFtoStr(apps[0]);
+      }
       //} catch {
       //  data = void 0;
       //  nextCXP = void 0;
@@ -1070,11 +1163,11 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
     elemOutput.textContent = data;
-    elemReset.disabled = (debugState === void 0);
-    elemNext.textContent = (debugState === void 0) ? "Debug" : "Next";
+    elemReset.disabled = debugState === void 0;
+    elemNext.textContent = debugState === void 0 ? "Debug" : "Next";
   };  // updateOutput
 
-  const obCode = new MutationObserver(mr => {
+  const obCode = new MutationObserver((mr) => {
     debugState = void 0;  // end debug mode
     updateOutput();
   });
@@ -1083,7 +1176,7 @@ document.addEventListener("DOMContentLoaded", () => {
     characterData: true,  // and the other characters
     subtree: true
   });
-  const obInput = new MutationObserver(mr => {
+  const obInput = new MutationObserver((mr) => {
     debugState = void 0;  // end debug mode
     updateOutput();
   });
@@ -1092,7 +1185,7 @@ document.addEventListener("DOMContentLoaded", () => {
     characterData: true,  // and the other characters
     subtree: true
   });
-  const obInput2 = new MutationObserver(mr => {
+  const obInput2 = new MutationObserver((mr) => {
     debugState = void 0;  // end debug mode
     updateOutput();
   });
@@ -1104,39 +1197,39 @@ document.addEventListener("DOMContentLoaded", () => {
 
   elemJSON.disabled = false;
   elemJSON.checked = outputJSON;
-  elemJSON.addEventListener('click', () => {
+  elemJSON.addEventListener("click", () => {
     outputJSON = elemJSON.checked;
     updateOutput();
   });
 
   elemCXP.disabled = false;
   elemCXP.checked = outputComb;
-  elemCXP.addEventListener('click', () => {
+  elemCXP.addEventListener("click", () => {
     outputComb = elemCXP.checked;
     updateOutput();
   });
 
   elemStr.disabled = false;
   elemStr.checked = outputStr;
-  elemStr.addEventListener('click', () => {
+  elemStr.addEventListener("click", () => {
     outputStr = elemStr.checked;
     updateOutput();
   });
   elemC.disabled = false;
   elemC.checked = forceLXP;
-  elemC.addEventListener('click', () => {
+  elemC.addEventListener("click", () => {
     forceLXP = elemC.checked;
     updateOutput();
   });
 
-  elemNext.addEventListener('click', () => {
-    updateOutput(true);  // debug mode
+  elemNext.addEventListener("click", () => {
+    updateOutput(true); // debug mode
   });
-  elemReset.addEventListener('click', () => {
-    debugState = void 0;  // end debug mode
+  elemReset.addEventListener("click", () => {
+    debugState = void 0; // end debug mode
     updateOutput();
   });
-  elemCopy.addEventListener('click', () => {
+  elemCopy.addEventListener("click", () => {
     navigator.clipboard.writeText(elemOutput.textContent);
   });
   updateOutput();
