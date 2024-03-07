@@ -84,22 +84,16 @@ const library = Object.assign(intrinsic, {
 // how to construct XRF
 const CXPtoXRF = (cxp) => ["+x", cxp, void 0, void 0];
 const cloneXRF = (xrf) => ["+c", xrf, void 0, void 0];
-const JSONtoXRF = (json) =>
-  ((
-    {
-      boolean: () => ["+b", json, void 0, void 0],
-      number: () => ["+n", json, void 0, void 0],
-      string: () => ["+s", json, void 0, void 0],
-      object: () =>
-        ((
-          {
-            "[object Array]": () => ["+a", json, void 0, void 0]
-          }[toString.call(json)] ?? (
-            () => ["+j", json, void 0, void 0]
-          )
-        )())
-    }[typeof json] ?? (() => ["+j", json, void 0, void 0])
-  )());
+const JSONtoXRF = (json) => (({
+  boolean: () => ["+b", json, void 0, void 0],
+  number: () => ["+n", json, void 0, void 0],
+  string: () => ["+s", json, void 0, void 0],
+  object: () => (({
+    "[object Array]": () => ["+a", json, void 0, void 0]
+  }[toString.call(json)] ?? (
+    () => ["+j", json, void 0, void 0]
+  ))())
+}[typeof json] ?? (() => ["+j", json, void 0, void 0]))());
 /*-------|---------|---------|---------|---------|--------*/
 // reduceOne calls those reduceXXX functions
 // some functions call back reduceOne by tail call
@@ -184,7 +178,7 @@ const reduce_ltNum = (xrfXX, rstate) => {  // native func.
     // reduce subexprssion for the 1st argument (xy)
     const rstateX = [sc1, mc1, cnt1, []];
     const [, [sc2, mc2, cnt2, ]] = reduceXRF(xy, rstateX);
-    const jsonX = (sc2 == "DN" && mc2 == "IA") ?  (
+    const jsonX = (sc2 == "DN" && mc2 == "IA") ? (
       XRFtoJSON(xy)  // the 1st argument of ltNum or void 0
     ) : (
       void 0
@@ -263,11 +257,10 @@ const reduceVar = (xrf, rstate) => {  // "var"
     xrf[3] = newXRF[3];
     return reduceOne(xrf, rsNew);
   } else {  // not in library
-    const comb = (v.match(/^[SKCB]/) ?? [null])[0];
-    const n = (v.slice(1).match(/^[0-9]+/) ?? [null])[0];
-    if (comb) {  // combinators with number
-      xrf[0] = comb;
-      xrf[1] = n ? +n : 1;
+    const comb = (v.match(/^[SKCB]([1-9][0-9]*)?$/) ?? [""])[0];
+    if (comb.length > 0) {  // combinators with number
+      xrf[0] = comb.slice(0, 1);
+      xrf[1] = comb.slice(1) ?? 1;
       xrf[2] = void 0;
       xrf[3] = void 0;
       return reduceOne(xrf, rsNew);
