@@ -71,8 +71,8 @@ export const setLibrary = (lib) => { library = lib; };
 /*-------|---------|---------|---------|---------|--------*/
 // how to construct XRF
 export const CXPtoXRF = (cxp) => ["+x", cxp, void 0, void 0];
-export const cloneXRF = (xrf) => ["+c", xrf, void 0, void 0];
-export const JSONtoXRF = (json) => (({
+const cloneXRF = (xrf) => ["+c", xrf, void 0, void 0];
+const JSONtoXRF = (json) => (({
   boolean: () => ["+b", json, void 0, void 0],
   number: () => ["+n", json, void 0, void 0],
   string: () => ["+s", json, void 0, void 0],
