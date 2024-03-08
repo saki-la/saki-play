@@ -65,7 +65,8 @@
 
 "use strict";
 
-export let library = {};
+let library = {};
+export const setLibrary = (lib) => { library = lib; };
 
 /*-------|---------|---------|---------|---------|--------*/
 // how to construct XRF
