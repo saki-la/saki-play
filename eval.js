@@ -65,6 +65,8 @@
 
 "use strict";
 
+export let library = {};
+
 /*-------|---------|---------|---------|---------|--------*/
 // how to construct XRF
 export const CXPtoXRF = (cxp) => ["+x", cxp, void 0, void 0];
