@@ -660,6 +660,18 @@ export const XRFtoCXP = (xrf) => ({
   "+a": () => ["+", xrf[1]],
   "+j": () => ["+", xrf[1]]
 }[xrf[0]]());  // XRFtoCXP
+const AryToStr = (json) => {
+  if (
+    outputStr &&
+    toString.call(json) == "[object Array]" &&
+    json.reduce((a, e) => a && typeof e == "number", true)
+  ) {
+    const u8a = new Uint8Array(json);
+    return new TextDecoder().decode(u8a); // UTF-8
+  } else {
+    return json;
+  }
+};
 export const XRFtoJSON = (xrf0) => {
   // convert XRF to JSON (or returns void 0)
   const json = ({
