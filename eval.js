@@ -243,7 +243,7 @@ const reduceVar = (xrf, rstate) => {  // "var"
     xrf[1] = newXRF[1];
     xrf[2] = newXRF[2];
     xrf[3] = newXRF[3];
-    return reduceOne(xrf, rsNew);
+    return [xrf, rsNew];
   } else {  // not in library
     const comb = (v.match(/^[SKCB]([1-9][0-9]*)?$/) ?? [""])[0];
     if (comb.length > 0) {  // combinators with number
