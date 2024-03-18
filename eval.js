@@ -65,7 +65,13 @@
 
 "use strict";
 
+let outputJSON = true;  // output in JSON representation
+let outputComb = true;  // output in combinator form
+let outputStr = true;   // output as string (no escapes)
 let library = {};
+export const setOutputJSON = (out) => { outputJSON = out; };
+export const setOutputComb = (out) => { outputComb = out; };
+export const setOutputStr = (out) => { outputStr = out; };
 export const setLibrary = (lib) => { library = lib; };
 
 /*-------|---------|---------|---------|---------|--------*/
@@ -906,3 +912,51 @@ export const XRFtoJSON = (xrf0) => {
 */
   return void 0;
 };  // XRFtoJSON
+const NtoStr = (n) => (n == 1 ? "" : "" + n);
+const CXPtoStr = (cxp) => ({
+  Sxy: () => "(S" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + " " +
+  CXPtoStr(cxp[3]) + ")",
+  Sx: () => "(S" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+  S: () => "S" + NtoStr(cxp[1]),
+  Kx: () => "(K" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+  K: () => "K" + NtoStr(cxp[1]),
+  Cxy: () =>
+  "(C" +
+  NtoStr(cxp[1]) +
+  " " +
+  CXPtoStr(cxp[2]) +
+  " " +
+  CXPtoStr(cxp[3]) +
+  ")",
+  Cx: () => "(C" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+  C: () => "C" + NtoStr(cxp[1]),
+  Bxy: () =>
+  "(B" +
+  NtoStr(cxp[1]) +
+  " " +
+  CXPtoStr(cxp[2]) +
+  " " +
+  CXPtoStr(cxp[3]) +
+  ")",
+  Bx: () => "(B" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+  B: () => "B" + NtoStr(cxp[1]),
+  I: () => "I",
+  app: () => "(" + CXPtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+  var: () => cxp[1],
+  "()": () => "()",
+  "+": () => JSON.stringify(cxp[1])
+}[cxp[0]]());  // CXPtoStr
+export const XRFtoComb = (xrf) => {  // stringify XRF in combinator form
+  if (outputComb) {
+    return CXPtoStr(XRFtoCXP(xrf));
+  } else {
+    return XRFtoCXP(xrf);
+  }
+};
+export const XRFtoStr = (xrf) => {  // stringify XRF in JSON
+  if (outputJSON) {
+    const json = AryToStr(XRFtoJSON(xrf));
+    if (json !== void 0) return json;
+  }
+  return XRFtoComb(xrf);
+};
