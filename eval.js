@@ -69,10 +69,14 @@ let outputJSON = true;  // output in JSON representation
 let outputComb = true;  // output in combinator form
 let outputStr = true;   // output as string (no escapes)
 let library = {};
+let debugSkip = new Set([]);
 export const setOutputJSON = (out) => { outputJSON = out; };
 export const setOutputComb = (out) => { outputComb = out; };
 export const setOutputStr = (out) => { outputStr = out; };
 export const setLibrary = (lib) => { library = lib; };
+export const setDebugSkip = (ds) => {
+  debugSkip = new Set(ds);
+};
 
 /*-------|---------|---------|---------|---------|--------*/
 // how to construct XRF
@@ -229,7 +233,9 @@ const reduceVar = (xrf, rstate) => {  // "var"
   const v = xrf[1];
   const ntv = nativeFunc[v];  
   const lib = library[v];
-  const rsNew = (ntv !== void 0 || lib !== void 0) ? ({
+  const exist = (ntv !== void 0 || lib !== void 0);
+  const skip = debugSkip.has(v);
+  const rsNew = (exist && !skip) ? ({
     D0: () => ["DB", "D2", cnt, apps],
     V0: () => ["DB", "V2", cnt, apps],
     D1: () => [sc, "D0", cnt, apps],
