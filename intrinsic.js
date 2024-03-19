@@ -1,3 +1,30 @@
+export const intrSkip = [
+  "Y",
+  "F",
+  "T",
+  "not",
+  "and",
+  "or",
+  "xor",
+  "sub1",
+  "sub2",
+  "sub4",
+  "sub8",
+  "lt8",
+  "inc1",
+  "inc2",
+  "inc4",
+  "inc8",
+  "incNum",
+  "ltNum",
+  "ltAry",
+  "ltStr",
+  "neStr",
+  "splitHalfAry",
+  "hasXInSAry",
+  "removeXFromAry"
+];
+
 export const intrinsic = {
   "Y": ["Bxy",1,["Sxy",1,["I"],["I"]],["Cxy",1,["B",1],["Sxy",1,["I"],["I"]]]],
   "F": ["Kx",1,["I"]],
