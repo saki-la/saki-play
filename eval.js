@@ -36,7 +36,11 @@
   ["+x", cxp, void 0, void 0]   // source CXP
   ["+c", xrf, void 0, void 0]   // cloning XRF
   ["+b", bool, void 0, void 0]  // JSON boolean
-  ["+f", func, 
+  ["+n", num, void 0, void 0]   // JSON number
+  ["+s", str, void 0, void 0]   // JSON string
+  ["+a", ary, void 0, void 0]   // JSON array
+  ["+j", json, void 0, void 0]  // any other JSON
+  ["+f", xrf, void 0, void 0]   // failed to convert to JSON
   
   RS (Reduction State)
   ["OK", "ND", cnt, apps]  // keep going with the reduction count (no debugging)
@@ -152,6 +156,7 @@ const reduceClone = (xrf, rstate) => {
     "+s": () => ["+s", sx[1], void 0, void 0],
     "+a": () => ["+a", sx[1], void 0, void 0],
     "+j": () => ["+j", sx[1], void 0, void 0],
+    "+f": () => ["+f", sx[1], void 0, void 0],
     "-": () => ["-", sx[1], sx[2], sx[3]]
   }[sx[0]]();
   xrf[0] = xrfNew[0];
@@ -612,6 +617,10 @@ const reduceOutput = (xrf, rstate) => {
   const [sc, mc, cnt, apps] = rstate;
   return [xrf, ["DN", "OT", cnt, apps]];
 };
+const reduceNonJSON = (xrf, rstate) => {
+  const [sc, mc, cnt, apps] = rstate;
+  return [xrf, ["DN", "IA", cnt, apps]];
+};
 const reduceMap = {  // reduce one step
   Sxy: reduceSxy,
   Sx: reduceSx,
@@ -635,6 +644,7 @@ const reduceMap = {  // reduce one step
   "+s": reduceStr, // JSON strings
   "+a": reduceArray, // JSON arrays
   "+j": reduceJSON, // other JSON types
+  "+f": reduceNonJSON, // non-JSON types
   "-": reduceOutput // sentinel to output
 };
 const reduceOne = (xrf, rstate) => reduceMap[xrf[0]](xrf, rstate);
@@ -670,7 +680,8 @@ export const XRFtoCXP = (xrf) => ({
   "+n": () => ["+", xrf[1]],
   "+s": () => ["+", xrf[1]],
   "+a": () => ["+", xrf[1]],
-  "+j": () => ["+", xrf[1]]
+  "+j": () => ["+", xrf[1]],
+  "+f": () => XRFtoCXP(xrf[1]),
 }[xrf[0]]());  // XRFtoCXP
 const AryToStr = (json) => {
   if (
@@ -684,8 +695,8 @@ const AryToStr = (json) => {
     return json;
   }
 };
-export const XRFtoJSON = (xrf0) => {
-  // convert XRF to JSON (or returns void 0)
+export const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
+  // easier way to convert
   const json = ({
     "+x": () => {
       const [, [sc, mc, , ]] = reduceXRF(xrf0);
@@ -704,7 +715,19 @@ export const XRFtoJSON = (xrf0) => {
   }[xrf0[0]] ?? (() => void 0))();
   if (json !== void 0) {  // JSON number
     return json;
+  } else if (xrf0[0] == "+f") {
+    return void 0;  // already failed to convert
   }
+
+  // harder way to convert (avoid retrying it)
+  const failedToConvertJSON = ()=> {
+    xrf0[1] = [..xrf0];
+    xrf0[0] = "+f";
+    xrf0[2] = void 0;
+    xrf0[3] = void 0;
+    return void 0;
+  };
+
   // recognize output by placing a sentinel
   const xrf1 = [  // clone CXP so that it does not affect to the original XRF
     "app", cloneXRF(xrf0), [
@@ -712,7 +735,7 @@ export const XRFtoJSON = (xrf0) => {
     ], void 0
   ];
   let [[sentl, sentlData], [sc, mc, cnt, apps]] = reduceXRF(xrf1);  // internal for output
-  if (sc != "DN") return void 0;
+  if (sc != "DN") return failedToConvertJSON();
 
   // first check whether it is a number such as:
   //   (s| s K (K I) (K I) (K I) (K I) (K I) K (K I))
@@ -737,8 +760,12 @@ export const XRFtoJSON = (xrf0) => {
         break;
       }
     }
-    if (u8 !== void 0 && bc == 8) {
-      return u8;  // it was a number
+    if (u8 !== void 0 && bc == 8) {  // it was a number
+      xrf0[0] = "+n";
+      xrf0[1] = u8;
+      xrf0[2] = void 0;
+      xrf0[3] = void 0;
+      return u8;
     }
   }
 
@@ -749,11 +776,16 @@ export const XRFtoJSON = (xrf0) => {
     ], void 0
   ];
   [[sentl, sentlData], [sc, mc, cnt, apps]] = reduceXRF(xrf2);  // internal for output
-  if (sc != "DN") return void 0;
+  if (sc != "DN") return failedToConvertJSON();
 
   if (sc == "DN" && mc == "OT") {
     if (apps.length == 0) {  // boolean or an end of array (f|x| x)
-      return sentlData == 0;  // 0: true, 1: false
+      const b = (sentlData == 0);  // 0: true, 1: false
+      xrf0[0] = "+b";
+      xrf0[1] = b;
+      xrf0[2] = void 0;
+      xrf0[3] = void 0;
+      return b;
     } else {
       const [app, x, y] = xrf2;
       if (apps.length == 2 && app == "app" && sentlData == 0) {
@@ -763,10 +795,18 @@ export const XRFtoJSON = (xrf0) => {
           const data = AryToStr(XRFtoJSON(xy));
           if (data !== void 0) {
             const subAr = XRFtoJSON(y);
+            let a = void 0;
             if (toString.call(subAr) == "[object Array]") {
-              return [data].concat(subAr);
-            } else if (typeof subAr == "boolean" && !subAr) {
-              return [data];
+              a = [data].concat(subAr);
+            } else if (typeof subAr == "boolean" && !subAr) {  // subAr is false
+              a = [data];
+            }
+            if (a != void 0) {
+              xrf0[0] = "+a";
+              xrf0[1] = a;
+              xrf0[2] = void 0;
+              xrf0[3] = void 0;
+              return a;
             }
           }
         }
@@ -811,7 +851,7 @@ export const XRFtoJSON = (xrf0) => {
     ], void 0
   ];  // xrf3
   [[sentl, sentlData], [sc, mc, cnt, apps]] = reduceXRF(xrf3);  // internal for output
-  if (sc != "DN") return void 0;
+  if (sc != "DN") return failedToConvertJSON();
 
   if (sc == "DN" && mc == "OT") {
     const ret = [
@@ -912,9 +952,15 @@ export const XRFtoJSON = (xrf0) => {
         return void 0;
       }
     ][sentlData]();
-    if (ret != void 0) return ret;
+    if (ret != void 0) {
+      xrf0[0] = "+a";
+      xrf0[1] = ret;
+      xrf0[2] = void 0;
+      xrf0[3] = void 0;
+      return ret; 
+    }
   }
-  return void 0;
+  return failedToConvertJSON();
 };  // XRFtoJSON
 const NtoStr = (n) => (n == 1 ? "" : "" + n);
 const CXPtoStr = (cxp) => ({
