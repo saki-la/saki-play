@@ -20,6 +20,8 @@ export const intrSkip = [
   "ltAry",
   "ltStr",
   "neStr",
+  "eqStr",
+  "mergeSAry",
   "splitHalfAry",
   "hasXInSAry",
   "hasStrInSAry",
