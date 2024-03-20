@@ -721,7 +721,7 @@ export const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
 
   // harder way to convert (avoid retrying it)
   const failedToConvertJSON = ()=> {
-    xrf0[1] = [..xrf0];
+    xrf0[1] = [...xrf0];
     xrf0[0] = "+f";
     xrf0[2] = void 0;
     xrf0[3] = void 0;
