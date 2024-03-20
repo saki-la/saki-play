@@ -22,7 +22,10 @@ export const intrSkip = [
   "neStr",
   "splitHalfAry",
   "hasXInSAry",
-  "removeXFromAry"
+  "hasStrInSAry",
+  "removeXFromAry",
+  "removeStrFromAry",
+  "vfreeLCX"
 ];
 
 export const intrinsic = {
