@@ -85,7 +85,7 @@ export const setDebugSkip = (ds) => {
 /*-------|---------|---------|---------|---------|--------*/
 // how to construct XRF
 export const CXPtoXRF = (cxp) => ["+x", cxp, void 0, void 0];
-const cloneXRF = (xrf) => ["+c", xrf, void 0, void 0];
+//const cloneXRF = (xrf) => ["+c", xrf, void 0, void 0];
 const JSONtoXRF = (json) => (({
   boolean: () => ["+b", json, void 0, void 0],
   number: () => ["+n", json, void 0, void 0],
@@ -729,8 +729,8 @@ export const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
   };
 
   // recognize output by placing a sentinel
-  const xrf1 = [  // clone CXP so that it does not affect to the original XRF
-    "app", cloneXRF(xrf0), [
+  const xrf1 = [
+    "app", xrf0, [
       "-", 0, void 0, void 0  // sentinel#0 to output
     ], void 0
   ];
@@ -746,7 +746,7 @@ export const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
     for (let c = xrf1; c[0] == "app"; c = c[1], ++bc) {
       const [[sl, sld], [, , , ap]] = reduceXRF([  // internal for output
         "app", [
-          "app", cloneXRF(c[2]), [
+          "app", c[2], [
             "-", 1, void 0, void 0   // sentinel to output 1
           ], void 0
         ], [
