@@ -953,14 +953,15 @@ export const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
       }
     ][sentlData]();
     if (ret != void 0) {
-      xrf0[0] = "+a";
-      xrf0[1] = ret;
-      xrf0[2] = void 0;
-      xrf0[3] = void 0;
+    //  xrf0[0] = "+a";
+    //  xrf0[1] = ret;
+    //  xrf0[2] = void 0;
+    //  xrf0[3] = void 0;
       return ret; 
     }
   }
-  return failedToConvertJSON();
+  //return failedToConvertJSON();
+  return void 0;
 };  // XRFtoJSON
 const NtoStr = (n) => (n == 1 ? "" : "" + n);
 const CXPtoStr = (cxp) => ({
