@@ -69,14 +69,8 @@
 
 "use strict";
 
-let outputJSON = true;  // output in JSON representation
-let outputComb = true;  // output in combinator form
-let outputStr = true;   // output as string (no escapes)
 let library = {};
 let debugSkip = new Set([]);
-export const setOutputJSON = (out) => { outputJSON = out; };
-export const setOutputComb = (out) => { outputComb = out; };
-export const setOutputStr = (out) => { outputStr = out; };
 export const setLibrary = (lib) => { library = lib; };
 export const setDebugSkip = (ds) => {
   debugSkip = new Set(ds);
@@ -683,9 +677,9 @@ export const XRFtoCXP = (xrf) => ({
   "+j": () => ["+", xrf[1]],
   "+f": () => XRFtoCXP(xrf[1]),
 }[xrf[0]]());  // XRFtoCXP
-const AryToStr = (json) => {
+const AryToStr = (mode, json) => {
   if (
-    outputStr &&
+    mode.outputStr &&
     toString.call(json) == "[object Array]" &&
     json.reduce((a, e) => a && typeof e == "number", true)
   ) {
@@ -695,18 +689,18 @@ const AryToStr = (json) => {
     return json;
   }
 };
-export const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
+export const XRFtoJSON = (mode, xrf0) => {  // convert XRF to JSON (or returns void 0)
   // easier way to convert
   const json = ({
     "+x": () => {
       const [, [sc, mc, , ]] = reduceXRF(xrf0);
       return (sc == "DN" && mc == "IA") ? (
-        XRFtoJSON(xrf0)
+        XRFtoJSON(mode, xrf0)
       ) : (
         void 0
       );
     },
-    "+c": () => XRFtoJSON(xrf0[1]),
+    "+c": () => XRFtoJSON(mode, xrf0[1]),
     "+b": () => xrf0[1],
     "+n": () => xrf0[1],
     "+s": () => xrf0[1],
@@ -792,9 +786,9 @@ export const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
         const [appX, xx, xy] = x;
         if (appX == "app") {
           // f|x| f data subArray
-          const data = AryToStr(XRFtoJSON(xy));
+          const data = AryToStr(mode, XRFtoJSON(mode, xy));
           if (data !== void 0) {
-            const subAr = XRFtoJSON(y);
+            const subAr = XRFtoJSON(mode, y);
             let a = void 0;
             if (toString.call(subAr) == "[object Array]") {
               a = [data].concat(subAr);
@@ -865,9 +859,9 @@ export const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
           appX == "app" &&
           appXX == "app"
         ) {
-          const lcxV = AryToStr(XRFtoJSON(xxy));  // variable name
-          const lcxX = XRFtoJSON(xy); // expression
-          const lcxVF = XRFtoJSON(y); // array of string
+          const lcxV = AryToStr(mode, XRFtoJSON(mode, xxy));  // variable name
+          const lcxX = XRFtoJSON(mode, xy); // expression
+          const lcxVF = XRFtoJSON(mode, y); // array of string
           if (lcxV != void 0 && lcxX != void 0 && lcxVF != void 0)
             return ["LCX:lam", lcxV, lcxX, lcxVF];
         }
@@ -883,9 +877,9 @@ export const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
           appX == "app" &&
           appXX == "app"
         ) {
-          const lcxX = XRFtoJSON(xxy);  // expression x
-          const lcxY = XRFtoJSON(xy);   // expression y
-          const lcxVF = XRFtoJSON(y);   // array of string
+          const lcxX = XRFtoJSON(mode, xxy);  // expression x
+          const lcxY = XRFtoJSON(mode, xy);   // expression y
+          const lcxVF = XRFtoJSON(mode, y);   // array of string
           if (lcxX != void 0 && lcxY != void 0 && lcxVF != void 0)
             return ["LCX:app", lcxX, lcxY, lcxVF];
         }
@@ -894,7 +888,7 @@ export const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
       () => {  // 2: var v (variable)
         const [app, x, y] = xrf3;
         if (apps.length == 1 && app == "app") {
-          const lcxV = AryToStr(XRFtoJSON(y));  // variable name
+          const lcxV = AryToStr(mode, XRFtoJSON(mode, y));  // variable name
           if (lcxV != void 0) return ["LCX:var", lcxV];
         }
         return void 0;
@@ -902,7 +896,7 @@ export const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
       () => {  // 3: js j (JSON value)
         const [app, x, y] = xrf3;
         if (apps.length == 1 && app == "app") {
-          const lcxJ = AryToStr(XRFtoJSON(y));  // JSON value
+          const lcxJ = AryToStr(mode, XRFtoJSON(mode, y));  // JSON value
           if (lcxJ != void 0) return ["LCX:+", lcxJ];
         }
         return void 0;
@@ -916,7 +910,7 @@ export const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
       () => {  // 5: s n (Sn combinator)
         const [app, x, y] = xrf3;
         if (apps.length == 1 && app == "app") {
-          const lcxN = XRFtoJSON(y);  // n
+          const lcxN = XRFtoJSON(mode, y);  // n
           if (lcxN != void 0) return ["LCX:S", lcxN];
         }
         return void 0;
@@ -924,7 +918,7 @@ export const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
       () => {  // 6: k n (Kn combinator)
         const [app, x, y] = xrf3;
         if (apps.length == 1 && app == "app") {
-          const lcxN = XRFtoJSON(y);  // n
+          const lcxN = XRFtoJSON(mode, y);  // n
           if (lcxN != void 0) return ["LCX:K", lcxN];
         }
         return void 0;
@@ -932,7 +926,7 @@ export const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
       () => {  // 7: c n (Cn combinator)
         const [app, x, y] = xrf3;
         if (apps.length == 1 && app == "app") {
-          const lcxN = XRFtoJSON(y);  // n
+          const lcxN = XRFtoJSON(mode, y);  // n
           if (lcxN != void 0) return ["LCX:C", lcxN];
         }
         return void 0;
@@ -940,7 +934,7 @@ export const XRFtoJSON = (xrf0) => {  // convert XRF to JSON (or returns void 0)
       () => {  // 8: b n (Bn combinator)
         const [app, x, y] = xrf3;
         if (apps.length == 1 && app == "app") {
-          const lcxN = XRFtoJSON(y);  // n
+          const lcxN = XRFtoJSON(mode, y);  // n
           if (lcxN != void 0) return ["LCX:B", lcxN];
         }
         return void 0;
@@ -997,17 +991,43 @@ const CXPtoStr = (cxp) => ({
   "()": () => "()",
   "+": () => JSON.stringify(cxp[1])
 }[cxp[0]]());  // CXPtoStr
-export const XRFtoComb = (xrf) => {  // stringify XRF in combinator form
-  if (outputComb) {
+const XRFtoComb = (mode, xrf) => {  // stringify XRF in combinator form
+  if (mode.outputComb) {
     return CXPtoStr(XRFtoCXP(xrf));
   } else {
     return XRFtoCXP(xrf);
   }
 };
-export const XRFtoStr = (xrf) => {  // stringify XRF in JSON
-  if (outputJSON) {
-    const json = AryToStr(XRFtoJSON(xrf));
-    if (json !== void 0) return json;
+const myDebugStep = (mode, debugStep0) => (
+  (debugStep0 != 0) ? (() => {
+    const [json, rstate, debugStep1] = debugStep0();
+    const [mc, sc, cnt, apps] = rstate;
+    const str = AryToStr(mode, json) ?? XRFtoComb(mode, apps[0]);
+    return [str, rstate, myDebugStep(mode, debugStep1)];
+  }) : void 0;
+);
+export const XRFtoStr = (mode, rstate) => {  // stringify XRF in JSON
+  const mode0 = { ...mode };
+  const [mc0, sc0, cnt0, apps0] = rstate;
+  if (mode0.outputJSON) {
+    const [json1, [mc1, sc1, cnt1, apps1], debugStep1] = (
+      XRFtoJSON(mode0, [mc0, sc0, cnt0, apps0])
+    );
+    const myDebugStep = (json, mc, sc, cnt, apps, debugStep) => {
+      
+
+
+
+    }) : void 0;
+    const str = AryToStr(mode0, json1);
+    if (str !== void 0) {
+      return [str, [mc1, sc1, cnt1, apps1], void 0];
+    } else {
+      return XRFtoComb(mode0, apps1[0])
+    }
+        
+      
+      return str;
   }
-  return XRFtoComb(xrf);
+  return XRFtoComb(mode, xrf);
 };
