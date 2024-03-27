@@ -682,6 +682,47 @@ export const XRFtoCXP = (xrf) => ({
   "+j": () => ["+", xrf[1]],
   "+f": () => XRFtoCXP(xrf[1]),
 }[xrf[0]]());  // XRFtoCXP
+const NtoStr = (n) => (n == 1 ? "" : "" + n);
+const CXPtoStr = (cxp) => ({
+  Sxy: () => "(S" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + " " +
+  CXPtoStr(cxp[3]) + ")",
+  Sx: () => "(S" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+  S: () => "S" + NtoStr(cxp[1]),
+  Kx: () => "(K" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+  K: () => "K" + NtoStr(cxp[1]),
+  Cxy: () =>
+  "(C" +
+  NtoStr(cxp[1]) +
+  " " +
+  CXPtoStr(cxp[2]) +
+  " " +
+  CXPtoStr(cxp[3]) +
+  ")",
+  Cx: () => "(C" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+  C: () => "C" + NtoStr(cxp[1]),
+  Bxy: () =>
+  "(B" +
+  NtoStr(cxp[1]) +
+  " " +
+  CXPtoStr(cxp[2]) +
+  " " +
+  CXPtoStr(cxp[3]) +
+  ")",
+  Bx: () => "(B" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+  B: () => "B" + NtoStr(cxp[1]),
+  I: () => "I",
+  app: () => "(" + CXPtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
+  var: () => cxp[1],
+  "()": () => "()",
+  "+": () => JSON.stringify(cxp[1])
+}[cxp[0]]());  // CXPtoStr
+const XRFtoComb = (mode, xrf) => {  // stringify XRF in combinator form
+  if (mode.outputComb) {
+    return CXPtoStr(XRFtoCXP(xrf));
+  } else {
+    return XRFtoCXP(xrf);
+  }
+};
 const AryToStr = (mode, json) => {
   if (
     mode.outputStr &&
@@ -702,32 +743,38 @@ const myDebugStep = (debugStep0) => (
     return [str, rstate, myDebugStep(debugStep1)];
   }) : void 0;
 );
-export const XRFtoStr = (mode, rstate0) => {
+const SourceCXPtoStr = (rstate) => {
+  let [mc, sc, cnt, apps] = rstate;
+  (mode) => 
+};
+
+export const XRFtoStr = (mode, rstate) => {
   // converts a XRF into the string in the specified mode
   // XRF may (or may not) be reduced based on the state
   // the reduction can be stopped when in the debug state
   // even if it is stopped, it coverts the entire XRF
   // returns the coverted string and the next function
+  let [mc, sc, cnt, apps] = rstate;
 
   // easier way to convert
   const json = ({
-    "+x": () => {
-      const [, [sc, mc, , ]] = reduceXRF(xrf0);
+    "+x": () => {        // source CXP
+      return SourceCXPtoStr(rstate)(mode);
+      
       return (sc == "DN" && mc == "IA") ? (
         XRFtoJSON(mode, xrf0)
       ) : (
         void 0
       );
     },
-    "+c": () => XRFtoJSON(mode, xrf0[1]),
-    "+b": () => xrf0[1],
-    "+n": () => xrf0[1],
-    "+s": () => xrf0[1],
-    "+a": () => xrf0[1],
-    "+j": () => xrf0[1]
+    "+b": () => xrf0[1],  // JSON boolean
+    "+n": () => xrf0[1],  // JSON number
+    "+s": () => xrf0[1],  // JSON string
+    "+a": () => xrf0[1],  // JSON array
+    "+j": () => xrf0[1]   // any other JSON
   }[xrf0[0]] ?? (() => void 0))();
-  if (json !== void 0) {  // JSON number
-    return json;
+  if (json !== void 0) {  // JSON value
+    return [json, ["DN", "IA", cnt, apps], void 0];
   } else if (xrf0[0] == "+f") {
     return void 0;  // already failed to convert
   }
@@ -976,47 +1023,8 @@ export const XRFtoStr = (mode, rstate0) => {
   //return failedToConvertJSON();
   return void 0;
 };  // XRFtoJSON
-const NtoStr = (n) => (n == 1 ? "" : "" + n);
-const CXPtoStr = (cxp) => ({
-  Sxy: () => "(S" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + " " +
-  CXPtoStr(cxp[3]) + ")",
-  Sx: () => "(S" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  S: () => "S" + NtoStr(cxp[1]),
-  Kx: () => "(K" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  K: () => "K" + NtoStr(cxp[1]),
-  Cxy: () =>
-  "(C" +
-  NtoStr(cxp[1]) +
-  " " +
-  CXPtoStr(cxp[2]) +
-  " " +
-  CXPtoStr(cxp[3]) +
-  ")",
-  Cx: () => "(C" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  C: () => "C" + NtoStr(cxp[1]),
-  Bxy: () =>
-  "(B" +
-  NtoStr(cxp[1]) +
-  " " +
-  CXPtoStr(cxp[2]) +
-  " " +
-  CXPtoStr(cxp[3]) +
-  ")",
-  Bx: () => "(B" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  B: () => "B" + NtoStr(cxp[1]),
-  I: () => "I",
-  app: () => "(" + CXPtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  var: () => cxp[1],
-  "()": () => "()",
-  "+": () => JSON.stringify(cxp[1])
-}[cxp[0]]());  // CXPtoStr
-const XRFtoComb = (mode, xrf) => {  // stringify XRF in combinator form
-  if (mode.outputComb) {
-    return CXPtoStr(XRFtoCXP(xrf));
-  } else {
-    return XRFtoCXP(xrf);
-  }
-};
+
+
 
 export const XRFtoStr = (mode, rstate) => {  // stringify XRF in JSON
   const mode0 = { ...mode };
