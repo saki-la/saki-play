@@ -689,7 +689,21 @@ const AryToStr = (mode, json) => {
     return json;
   }
 };
-export const XRFtoJSON = (mode, xrf0) => {  // convert XRF to JSON (or returns void 0)
+const myDebugStep = (debugStep0) => (
+  (debugStep0 != 0) ? ((mode) => {
+    const [json, rstate, debugStep1] = debugStep0(mode);
+    const [mc, sc, cnt, apps] = rstate;
+    const str = AryToStr(mode, json) ?? XRFtoComb(mode, apps[0]);
+    return [str, rstate, myDebugStep(debugStep1)];
+  }) : void 0;
+);
+export const XRFtoStr = (mode, rstate0) => {
+  // converts a XRF into the string in the specified mode
+  // XRF may (or may not) be reduced based on the state
+  // the reduction can be stopped when in the debug state
+  // even if it is stopped, it coverts the entire XRF
+  // returns the coverted string and the next function
+
   // easier way to convert
   const json = ({
     "+x": () => {
@@ -998,14 +1012,7 @@ const XRFtoComb = (mode, xrf) => {  // stringify XRF in combinator form
     return XRFtoCXP(xrf);
   }
 };
-const myDebugStep = (mode, debugStep0) => (
-  (debugStep0 != 0) ? (() => {
-    const [json, rstate, debugStep1] = debugStep0();
-    const [mc, sc, cnt, apps] = rstate;
-    const str = AryToStr(mode, json) ?? XRFtoComb(mode, apps[0]);
-    return [str, rstate, myDebugStep(mode, debugStep1)];
-  }) : void 0;
-);
+
 export const XRFtoStr = (mode, rstate) => {  // stringify XRF in JSON
   const mode0 = { ...mode };
   const [mc0, sc0, cnt0, apps0] = rstate;
