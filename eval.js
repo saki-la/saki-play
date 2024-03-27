@@ -642,14 +642,19 @@ const reduceMap = {  // reduce one step
   "-": reduceOutput // sentinel to output
 };
 const reduceOne = (xrf, rstate) => reduceMap[xrf[0]](xrf, rstate);
-export const reduceXRF = (xrfOrg, rsOrg = ["OK", "ND", 40000, []]) => {
-  let [xrf, [sc, mc, cnt, apps]] = reduceOne(xrfOrg, rsOrg);
-  while (sc == "OK") {  // reduction loop
-    if (--cnt <= 0)  // too many reductions
-      return [xrf, ["ER", "EC", cnt, apps]];
-    [xrf, [sc, mc, cnt, apps]] = reduceOne(xrf, [sc, mc, cnt, apps]);
+export const reduceXRF = (rstate) => {
+  let [sc, mc, cnt, apps] = rstate;
+  if (mc != "D2" && mc != "V2") {
+    let xrf = apps.pop();
+    do {  // reduction loop
+      [xrf, [sc, mc, cnt, apps]] = reduceOne(xrf, [sc, mc, cnt, apps]);
+    } while (sc == "OK" && --cnt > 0);
+    apps.push[xrf];
   }
-  return [xrf, [sc, mc, cnt, apps]];
+  if (sc != "OK" || cnt > 0)
+    return [sc, mc, cnt, apps];
+  else
+    return ["ER", "EC", cnt, apps];  // too many reductions
 };
 /*-------|---------|---------|---------|---------|--------*/
 export const XRFtoCXP = (xrf) => ({
