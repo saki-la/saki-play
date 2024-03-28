@@ -48,14 +48,20 @@
   ["OK", "D1", cnt, apps]  // under debugging: reduce a comb/var then find next
   ["OK", "V0", cnt, apps]  // under debugging: find var
   ["OK", "V1", cnt, apps]  // under debugging: reduce a var then find next
-  ["DN", "OT", cnt, apps]  // done: output
-  ["DN", "IA", cnt, apps]  // done: insufficient arguments
+  ["IA",     , cnt, apps]  // done: insufficient arguments 
+  ["OT",     , cnt, apps]  // done: output
   ["DB", "D2", cnt, apps]  // debug break: stopped at comb/var
   ["DB", "V2", cnt, apps]  // debug break: stopped at var
+
   ["ER", "EC", cnt, apps]  // error: exceeded maximum count
   ["ER", "UV", cnt, apps]  // error: undefined variable
   ["ER", "PH", cnt, apps]  // error: reduced on placeholder
   ["ER", "NV", cnt, apps]  // error: failed to reduce by native function
+  ["ER", "IE", cnt, apps]  // error: internal error (a bug in the code)
+
+  output mode
+  JSON compact CXP Str
+     T       F   
 
 
   input/output example (priority order)
@@ -642,19 +648,15 @@ const reduceMap = {  // reduce one step
   "-": reduceOutput // sentinel to output
 };
 const reduceOne = (xrf, rstate) => reduceMap[xrf[0]](xrf, rstate);
-export const reduceXRF = (rstate) => {
-  let [sc, mc, cnt, apps] = rstate;
-  if (mc != "D2" && mc != "V2") {
-    let xrf = apps.pop();
-    do {  // reduction loop
-      [xrf, [sc, mc, cnt, apps]] = reduceOne(xrf, [sc, mc, cnt, apps]);
-    } while (sc == "OK" && --cnt > 0);
-    apps.push[xrf];
+export const reduceXRF = (xrf, rstate) => {
+  let [sc, mc, cnt, apps] = [rstate];
+  while (sc == "OK" && --cnt > 0)  {
+    [xrf, [sc, mc, cnt, apps]] = reduceOne(xrf, [sc, mc, cnt, apps]);
   }
-  if (sc != "OK" || cnt > 0)
-    return [sc, mc, cnt, apps];
+  if (sc == "OK" && cnt <= 0)  // too many reductions
+    return [xrf, ["ER", "EC", cnt, apps]];
   else
-    return ["ER", "EC", cnt, apps];  // too many reductions
+    return [xrf, [sc, mc, cnt, apps]];
 };
 /*-------|---------|---------|---------|---------|--------*/
 export const XRFtoCXP = (xrf) => ({
@@ -735,6 +737,9 @@ const AryToStr = (mode, json) => {
     return json;
   }
 };
+const JSONtoStr = (mode, json) => {
+  
+};
 const myDebugStep = (debugStep0) => (
   (debugStep0 != 0) ? ((mode) => {
     const [json, rstate, debugStep1] = debugStep0(mode);
@@ -747,37 +752,63 @@ const SourceCXPtoStr = (rstate) => {
   let [mc, sc, cnt, apps] = rstate;
   (mode) => 
 };
+/*-------|---------|---------|---------|---------|--------*/
+const X2S_P0 = (xrf0, rstate0) => (mode) => {
+  const [xrf1, rstate1] = reduceXRF(xrf0, rstate0);
+  const [sc, mc, cnt, apps] = rstate1;
+  return ({
+    "DB": () => {  // debug break
+      const str = X2S_toComb(mode, xrf1);
+      const rstate2 = ["OK", mc, cnt, apps];
+      return [str, rstate1, X2S_P0(xrf1, rstate2)];
+    },
+    "IA": () => {  // insufficient arguments
+      // easier way to convert
+      const json = ({
+        "+b": () => xrf0[1],  // JSON boolean
+        "+n": () => xrf0[1],  // JSON number
+        "+s": () => xrf0[1],  // JSON string
+        "+a": () => xrf0[1],  // JSON array
+        "+j": () => xrf0[1],  // any other JSON
+        "+f": () => {
+          const str = X2S_toComb(mode, xrf1);
+          return [str, rstate1, void 0];
+        }
+      }[xrf0[0]] ?? (() => void 0))();
+      if (json !== void 0) {  // JSON value
+        const str = AryToStr
+        return [json, ["IA", mc, cnt, apps], void 0];
+      }
 
+      // recognize output by placing a sentinel
+      const xrf2 = [
+        "app", xrf1, [
+          "-", 0, void 0, void 0  // sentinel#0 to output
+        ], void 0
+      ];
+      const rstate2 = ["OK", mc, cnt, apps];
+      return X2S_P1(xrf2, rstate2)(mode);
+    },
+    "ER": () => ["N/A", rstate1, void 0]
+  }[sc] ?? (() => {  // internal error
+    return ["N/A", ["ER", "IE", cnt, apps], void 0];
+  }))();
+};
 export const XRFtoStr = (mode, rstate) => {
   // converts a XRF into the string in the specified mode
   // XRF may (or may not) be reduced based on the state
   // the reduction can be stopped when in the debug state
   // even if it is stopped, it coverts the entire XRF
   // returns the coverted string and the next function
-  let [mc, sc, cnt, apps] = rstate;
 
-  // easier way to convert
-  const json = ({
-    "+x": () => {        // source CXP
-      return SourceCXPtoStr(rstate)(mode);
-      
-      return (sc == "DN" && mc == "IA") ? (
-        XRFtoJSON(mode, xrf0)
-      ) : (
-        void 0
-      );
-    },
-    "+b": () => xrf0[1],  // JSON boolean
-    "+n": () => xrf0[1],  // JSON number
-    "+s": () => xrf0[1],  // JSON string
-    "+a": () => xrf0[1],  // JSON array
-    "+j": () => xrf0[1]   // any other JSON
-  }[xrf0[0]] ?? (() => void 0))();
-  if (json !== void 0) {  // JSON value
-    return [json, ["DN", "IA", cnt, apps], void 0];
-  } else if (xrf0[0] == "+f") {
-    return void 0;  // already failed to convert
-  }
+  // (1) convverts the XRF without adding the parameters
+  let [sc, mc, cnt, apps] = rstate;
+  let xrf = apps.pop();
+  return X2S_P0(xrf, [sc, mc, cnt, apps])(mode);
+};
+
+
+
 
   // harder way to convert (avoid retrying it)
   const failedToConvertJSON = ()=> {
@@ -788,12 +819,7 @@ export const XRFtoStr = (mode, rstate) => {
     return void 0;
   };
 
-  // recognize output by placing a sentinel
-  const xrf1 = [
-    "app", xrf0, [
-      "-", 0, void 0, void 0  // sentinel#0 to output
-    ], void 0
-  ];
+
   let [[sentl, sentlData], [sc, mc, cnt, apps]] = reduceXRF(xrf1);  // internal for output
   if (sc != "DN") return failedToConvertJSON();
 
