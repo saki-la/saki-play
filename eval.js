@@ -40,7 +40,7 @@
   ["+s", str, void 0, void 0]   // JSON string
   ["+a", ary, void 0, void 0]   // JSON array
   ["+j", json, void 0, void 0]  // any other JSON
-  ["+f", xrf, void 0, void 0]   // failed to convert to JSON
+  ["+f", xrf, void 0, void 0]   // failed to convert to JSON/string
   
   RS (Reduction State)
   ["OK", "ND", cnt, apps]  // keep going with the reduction count (no debugging)
@@ -48,8 +48,8 @@
   ["OK", "D1", cnt, apps]  // under debugging: reduce a comb/var then find next
   ["OK", "V0", cnt, apps]  // under debugging: find var
   ["OK", "V1", cnt, apps]  // under debugging: reduce a var then find next
-  ["IA",     , cnt, apps]  // done: insufficient arguments 
-  ["OT",     , cnt, apps]  // done: output
+  ["IA",     , cnt, apps]  // done reduction: insufficient arguments 
+  ["OT",     , cnt, apps]  // done reduction: output
   ["DB", "D2", cnt, apps]  // debug break: stopped at comb/var
   ["DB", "V2", cnt, apps]  // debug break: stopped at var
 
@@ -753,7 +753,13 @@ const SourceCXPtoStr = (rstate) => {
   (mode) => 
 };
 /*-------|---------|---------|---------|---------|--------*/
+const X2S_P1 = (xrf0, rstate0) => (mode) => {
+  const [xrf1, rstate1] = reduceXRF(xrf0, rstate0);
+  const [sc, mc, cnt, apps] = rstate1;
+
+};
 const X2S_P0 = (xrf0, rstate0) => (mode) => {
+  // (1) convverts the XRF without adding the parameters
   const [xrf1, rstate1] = reduceXRF(xrf0, rstate0);
   const [sc, mc, cnt, apps] = rstate1;
   return ({
@@ -763,31 +769,31 @@ const X2S_P0 = (xrf0, rstate0) => (mode) => {
       return [str, rstate1, X2S_P0(xrf1, rstate2)];
     },
     "IA": () => {  // insufficient arguments
-      // easier way to convert
-      const json = ({
-        "+b": () => xrf0[1],  // JSON boolean
-        "+n": () => xrf0[1],  // JSON number
-        "+s": () => xrf0[1],  // JSON string
-        "+a": () => xrf0[1],  // JSON array
-        "+j": () => xrf0[1],  // any other JSON
-        "+f": () => {
+      const [plus, json, v0, v1] = xrf1;
+      const jsonData = () => {
+        const str = X2S_JtoS(mode, json);
+        return [str, ["IA", mc, cnt, apps], void 0];
+      };
+      return ({  // easier way to convert
+        "+b": jsonData,  // JSON boolean
+        "+n": jsonData,  // JSON number
+        "+s": jsonData,  // JSON string
+        "+a": jsonData,  // JSON array
+        "+j": jsonData,  // any other JSON
+        "+f": () => {    // already failed to convert
           const str = X2S_toComb(mode, xrf1);
           return [str, rstate1, void 0];
         }
-      }[xrf0[0]] ?? (() => void 0))();
-      if (json !== void 0) {  // JSON value
-        const str = AryToStr
-        return [json, ["IA", mc, cnt, apps], void 0];
-      }
-
-      // recognize output by placing a sentinel
-      const xrf2 = [
-        "app", xrf1, [
-          "-", 0, void 0, void 0  // sentinel#0 to output
-        ], void 0
-      ];
-      const rstate2 = ["OK", mc, cnt, apps];
-      return X2S_P1(xrf2, rstate2)(mode);
+      }[plus] ?? (() => {  // hard way
+        // recognize output by placing a sentinel
+        const xrf2 = [
+          "app", xrf1, [
+            "-", 0, void 0, void 0  // sentinel#0 to output
+          ], void 0
+        ];
+        const rstate2 = ["OK", mc, cnt, apps];
+        return X2S_P1(xrf2, rstate2)(mode);
+      }))();
     },
     "ER": () => ["N/A", rstate1, void 0]
   }[sc] ?? (() => {  // internal error
@@ -800,8 +806,6 @@ export const XRFtoStr = (mode, rstate) => {
   // the reduction can be stopped when in the debug state
   // even if it is stopped, it coverts the entire XRF
   // returns the coverted string and the next function
-
-  // (1) convverts the XRF without adding the parameters
   let [sc, mc, cnt, apps] = rstate;
   let xrf = apps.pop();
   return X2S_P0(xrf, [sc, mc, cnt, apps])(mode);
