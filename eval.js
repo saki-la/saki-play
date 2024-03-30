@@ -769,9 +769,32 @@ const X2O_P1Num = (xrf0, rstate0, next0) => (mode0) => {
 };
 const X2O_P1NonNum = (xrf0, rstate0) => (mode) => {
 };
-const X2O_P1CheckNum = (apps, u8) => (mode) => {
-  let [app, x, y, v0] = apps[0];
-  
+const X2O_P1CheckNum = (next0, xrf0, xrfE, u8) => (mode) => {
+  const [val1, xrf1, rstate1, next1] = next0(mode);
+  const [sc, mc, cnt, apps] = rstate1;
+  return ({
+    "DB": () => {  // debug break
+      const str = X2O_toComb(mode, xrf1);
+      const rstate2 = ["OK", mc, cnt, apps];
+      console.assert(next1 !== void 0);
+      const next2 = X2O_P1CheckNum(next1, xrf0, xrfE, u8);
+      return [str, xrf1, rstate1, next2];
+    },
+    "IA": () => {  // insufficient arguments
+      
+
+
+      
+      const [app, x, y, v1] = xrf0;
+
+
+      if (x !== xrfE) {
+        return X2O_P1CheckNum(next1, 
+      } else {
+      }
+
+      return X2O_P1NonNum(xrf1, rstate1)(mode);
+    },
 };
 const X2O_P1 = (xrf0, rstate0) => (mode) => {
   // (2) converts the XRF with a parameter
@@ -786,7 +809,7 @@ const X2O_P1 = (xrf0, rstate0) => (mode) => {
     "IA": () => {  // insufficient arguments
       return X2O_P1NonNum(xrf1, rstate1)(mode);
     },
-    "OT": () => {  // output sentinel set in X2O_P0()
+    "OT": () => {  // output sentinel which set in X2O_P0()
       const [minus, id, v1, v2] = xrf1;
       console.assert(minus == "-" && id == 0, minus, id);
 
@@ -796,10 +819,21 @@ const X2O_P1 = (xrf0, rstate0) => (mode) => {
       if (apps.length != 8)
         return X2O_P1NonNum();
 
+      console.assert(xrf0 === apps[0]);
+      console.assert(apps[0][1] === apps[1]);
+      console.assert(apps[1][1] === apps[2]);
+      console.assert(apps[2][1] === apps[3]);
+      console.assert(apps[3][1] === apps[4]);
+      console.assert(apps[4][1] === apps[5]);
+      console.assert(apps[5][1] === apps[6]);
+      console.assert(apps[6][1] === apps[7]);
       console.assert(apps[7][1] === xrf1);
       const [out, sent, v0, v1] = xrf1;
       console.assert(out == "-" && sent == 0, out, sent);
-      return X2O_P1CheckNum(xrf1, rstate1, apps, 0);
+      const [app, x, y, v1] = xrf0;
+      console.assert(app == "app");
+      const next2 = X2O_P0(y, ["OK", mc, cnt, []]);
+      return X2O_P1CheckNum(next2, xrf0, xrf1, 0)(mode);
 
       for (x !== xrf1) {
 
@@ -884,7 +918,7 @@ const X2O_P0 = (xrf0, rstate0) => (mode) => {
     return ["N/A", xrf1, ["ER", "IE", cnt, apps], void 0];
   }))();
 };
-export const XRFtoOut = (mode, xrf, rstate) => {
+export const XRFtoOut = (xrf, mc, cnt, mode) => {
   // converts a XRF into the output value
   // the value will be either a JSON or string
   // the type is based on the specified mode
@@ -894,7 +928,7 @@ export const XRFtoOut = (mode, xrf, rstate) => {
   // it continues by calling the next function
   // the function also returns the value and the next func
   // it can go on unless the next function is void 0
-  return X2O_P0(xrf, rstate)(mode);
+  return X2O_P0(xrf, ["OK", mc, cnt, []])(mode);
 };
 
 
