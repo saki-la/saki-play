@@ -753,8 +753,8 @@ const SourceCXPtoStr = (rstate) => {
   (mode) => 
 };
 /*-------|---------|---------|---------|---------|--------*/
-const X2O_P1Num = (xrf0, rstate0, next0) => (mode0) => {
-  const [val1, xrf1, rstate1, next1] = X2O_P0(xrf0, rstate0)(mode);
+const X2V_P1Num = (xrf0, rstate0, next0) => (mode0) => {
+  const [val1, xrf1, rstate1, next1] = X2V_P0(xrf0, rstate0)(mode);
   const [sc, mc, cnt, apps] = rstate1;
   return ({
     "DB": () => {  // debug break
@@ -767,49 +767,67 @@ const X2O_P1Num = (xrf0, rstate0, next0) => (mode0) => {
     return ["N/A", ["ER", "IE", cnt, apps], void 0];
   }))();
 };
-const X2O_P1NonNum = (xrf0, rstate0) => (mode) => {
+const X2V_P1NonNum = (xrf0, rstate0) => (mode) => {
 };
-const X2O_P1CheckNum = (next0, xrf0, xrfE, u8) => (mode) => {
+const X2V_P1NumBit = (xrf0, next0, xrfE, u8) => (mode) => {
   const [val1, xrf1, rstate1, next1] = next0(mode);
   const [sc, mc, cnt, apps] = rstate1;
   return ({
     "DB": () => {  // debug break
-      const str = X2O_toComb(mode, xrf1);
-      const rstate2 = ["OK", mc, cnt, apps];
       console.assert(next1 !== void 0);
-      const next2 = X2O_P1CheckNum(next1, xrf0, xrfE, u8);
-      return [str, xrf1, rstate1, next2];
+      const next2 = X2V_P1NumBit(xrf0, next1, xrfE, u8);
+      return [val1, xrf1, rstate1, next2];
     },
     "IA": () => {  // insufficient arguments
-      
-
-
-      
+      console.assert(next1 !== void 0);
       const [app, x, y, v1] = xrf0;
-
-
-      if (x !== xrfE) {
-        return X2O_P1CheckNum(next1, 
+      console.assert(app == "app");
+      const modeJSON = {
+        outputJSON: true,
+        outputCXP: false,
+        outputStr: true,
+        compact: true
+      };
+      const [val2, xrf2, rstate2, next2] = X2V_P0(y, ["OK", mc, cnt, []])(modeJSON);
+      console.assert(next2 === void 0);
+      if (typeof val2 == "boolean") {
+        const b = (val2) ? 1 : 0;
+        const u8New = (u8 << 1) | b;
+        if (x !== xrfE) {
+          const [xapp, xx, xy, xv1] = x;
+          console.assert(xapp == "app");
+          const next2 = X2V_P0(xy, ["OK", mc, cnt, []]);
+          return X2V_P1NumBit(x, next1, xrfE, u8New);
+        } else {
+          x[0] = "+n";
+          x[1] = u8New;
+          x[2] = void 0;
+          x[3] = void 0;
+          return [u8New, x, [sc, mc, cnt, apps], void 0];
+        }
       } else {
+        return X2V_P1NonNum(xrf1, rstate1)(mode);
       }
-
-      return X2O_P1NonNum(xrf1, rstate1)(mode);
     },
+    "ER": () => ["N/A", rstate1, void 0]
+  }[sc] ?? (() => {  // internal error
+    return ["N/A", ["ER", "IE", cnt, apps], void 0];
+  }))();
 };
-const X2O_P1 = (xrf0, rstate0) => (mode) => {
+const X2V_P1 = (xrf0, rstate0) => (mode) => {
   // (2) converts the XRF with a parameter
   const [xrf1, rstate1] = reduceXRF(xrf0, rstate0);
   const [sc, mc, cnt, apps] = rstate1;
   return ({
     "DB": () => {  // debug break
-      const str = X2O_toComb(mode, xrf1);
+      const str = X2V_toComb(mode, xrf1);
       const rstate2 = ["OK", mc, cnt, apps];
-      return [str, xrf1, rstate1, X2S_P1(xrf1, rstate2)];
+      return [str, xrf1, rstate1, X2V_P1(xrf1, rstate2)];
     },
     "IA": () => {  // insufficient arguments
-      return X2O_P1NonNum(xrf1, rstate1)(mode);
+      return X2V_P1NonNum(xrf1, rstate1)(mode);
     },
-    "OT": () => {  // output sentinel which set in X2O_P0()
+    "OT": () => {  // output sentinel which set in X2V_P0()
       const [minus, id, v1, v2] = xrf1;
       console.assert(minus == "-" && id == 0, minus, id);
 
@@ -817,7 +835,7 @@ const X2O_P1 = (xrf0, rstate0) => (mode) => {
       //   (s| s K (K I) (K I) (K I) (K I) (K I) K (K I))
       //   => 65 = 0x41 = 0b01000001 = 'A'
       if (apps.length != 8)
-        return X2O_P1NonNum();
+        return X2V_P1NonNum();
 
       console.assert(xrf0 === apps[0]);
       console.assert(apps[0][1] === apps[1]);
@@ -832,67 +850,28 @@ const X2O_P1 = (xrf0, rstate0) => (mode) => {
       console.assert(out == "-" && sent == 0, out, sent);
       const [app, x, y, v1] = xrf0;
       console.assert(app == "app");
-      const next2 = X2O_P0(y, ["OK", mc, cnt, []]);
-      return X2O_P1CheckNum(next2, xrf0, xrf1, 0)(mode);
-
-      for (x !== xrf1) {
-
-
-        [app, x, y, v0] = x;
-      }
-      
-      
-        let u8 = 0;  // unsigned 8 bits integer
-        let bc = 0;  // bit count
-        let x = xrf0;
-        while (app == "app") {  // ; x = x[1], ++bc)
-          const [val, xrf2, rstate2, next2] = X2O_P1Num(y, [sc, mc, cnt, 
-
-          
-          const [[sl, sld], [, , , ap]] = reduceXRF([  // internal for output
-            "app", [
-              "app", c[2], [
-                "-", 1, void 0, void 0   // sentinel to output 1
-              ], void 0
-            ], [
-              "-", 0, void 0, void 0  // sentinel to output 0
-            ], void 0
-          ]);
-          if (sl === "-" && ap.length == 0) {
-            u8 = (u8 << 1) | sld;  // bitwise shift and or
-          } else {
-            u8 = void 0;  // it was not a number
-            break;
-          }
-        }
-        if (u8 !== void 0 && bc == 8) {  // it was a number
-          xrf0[0] = "+n";
-          xrf0[1] = u8;
-          xrf0[2] = void 0;
-          xrf0[3] = void 0;
-          return u8;
-        }
-  }
+      const next2 = X2V_P0(y, ["OK", mc, cnt, []]);
+      return X2V_P1NumBit(xrf0, next2, xrf1, 0)(mode);
     },
     "ER": () => ["N/A", rstate1, void 0]
   }[sc] ?? (() => {  // internal error
     return ["N/A", ["ER", "IE", cnt, apps], void 0];
   }))();
 };
-const X2O_P0 = (xrf0, rstate0) => (mode) => {
+const X2V_P0 = (xrf0, rstate0) => (mode) => {
   // (1) converts the XRF without adding any parameters
   const [xrf1, rstate1] = reduceXRF(xrf0, rstate0);
   const [sc, mc, cnt, apps] = rstate1;
   return ({
     "DB": () => {  // debug break
-      const str = X2O_toComb(mode, xrf1);
+      const str = X2V_toComb(mode, xrf1);
       const rstate2 = ["OK", mc, cnt, apps];
-      return [str, xrf1, rstate1, X2S_P0(xrf1, rstate2)];
+      return [str, xrf1, rstate1, X2V_P0(xrf1, rstate2)];
     },
     "IA": () => {  // insufficient arguments
       const [plus, data, v0, v1] = xrf1;
       const jsonValue = () => {
-        return [X2O_JtoS(mode, data), rstate1, void 0];
+        return [X2V_JtoS(mode, data), rstate1, void 0];
       };
       return ({  // easier way to convert
         "+b": jsonValue,  // JSON boolean
@@ -901,7 +880,7 @@ const X2O_P0 = (xrf0, rstate0) => (mode) => {
         "+a": jsonValue,  // JSON array
         "+j": jsonValue,  // any other JSON
         "+f": () => {  // already failed to convert
-          return [X2O_toComb(mode, data), rstate1, void 0];
+          return [X2V_toComb(mode, data), rstate1, void 0];
         }
       }[plus] ?? (() => {  // hard way
         // recognize output by placing a sentinel
@@ -910,7 +889,7 @@ const X2O_P0 = (xrf0, rstate0) => (mode) => {
             "-", 0, void 0, void 0  // sentinel#0 to output
           ], void 0
         ];
-        return X2O_P1(xrf2, ["OK", mc, cnt, apps])(mode);
+        return X2V_P1(xrf2, ["OK", mc, cnt, apps])(mode);
       }))();
     },
     "ER": () => ["N/A", rstate1, void 0]
@@ -928,7 +907,7 @@ export const XRFtoOut = (xrf, mc, cnt, mode) => {
   // it continues by calling the next function
   // the function also returns the value and the next func
   // it can go on unless the next function is void 0
-  return X2O_P0(xrf, ["OK", mc, cnt, []])(mode);
+  return X2V_P0(xrf, ["OK", mc, cnt, []])(mode);
 };
 
 
