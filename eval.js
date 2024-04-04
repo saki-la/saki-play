@@ -35,12 +35,14 @@
   ["()"]       // placeholder
   ["+x", cxp, void 0, void 0]   // source CXP
   ["+c", xrf, void 0, void 0]   // cloning XRF
-  ["+b", bool, void 0, void 0]  // JSON boolean
-  ["+n", num, void 0, void 0]   // JSON number
-  ["+s", str, void 0, void 0]   // JSON string
-  ["+a", ary, void 0, void 0]   // JSON array
+  ["+b", bool, void 0, void 0]  // JSON boolean; false/true
+  ["+n", num, void 0, void 0]   // JSON number; 0..255
+  ["+s", str, void 0, void 0]   // JSON string; "abc"
+  ["+a", ary, void 0, void 0]   // JSON array; [x, y, z]
   ["+j", json, void 0, void 0]  // any other JSON
-  ["+f", xrf, void 0, void 0]   // failed to convert to JSON/string
+  ["+/", index, cnt, void 0]    // selector; index/count
+  ["+p", org, withpp, pc]       // expression with pseudo paramters
+  ["-", num, void 0, void 0]    // pseudo paramter; <a>
   
   RS (Reduction State)
   ["OK", "ND", cnt, apps]  // keep going with the reduction count (no debugging)
