@@ -34,16 +34,16 @@
   ["var", vname, void 0, void 0]  // free varialble
   ["()"]       // placeholder
   ["+x", cxp, void 0, void 0]   // source CXP
-  ["+c", xrf, void 0, void 0]   // cloning XRF
   ["+b", bool, void 0, void 0]  // JSON boolean; false/true
   ["+n", num, void 0, void 0]   // JSON number; 0..255
   ["+s", str, void 0, void 0]   // JSON string; "abc"
   ["+a", ary, void 0, void 0]   // JSON array; [x, y, z]
-  ["+j", json, void 0, void 0]  // any other JSON
-  ["+/", index, cnt, void 0]    // selector; index/count
-  ["+p", org, withpp, pc]       // expression with pseudo paramters
+  ["+j", json, void 0, void 0]  // any other JSON (null or object)
+  ["+p", apps, ppcnt, org]      // expression with pseudo paramters (ppcnt <= 64)
   ["-", num, void 0, void 0]    // pseudo paramter; <a>
-  
+  ["+/", index, cnt, void 0]    // selector (Kn Km); index/count (n/(n+m+1))
+  ["+f", xrf, void 0, void 0]   // pseudo parameters did not work
+
   RS (Reduction State)
   ["OK", "ND", cnt, apps]  // keep going with the reduction count (no debugging)
   ["OK", "D0", cnt, apps]  // under debugging: find comb/var
@@ -60,10 +60,6 @@
   ["ER", "PH", cnt, apps]  // error: reduced on placeholder
   ["ER", "NV", cnt, apps]  // error: failed to reduce by native function
   ["ER", "IE", cnt, apps]  // error: internal error (a bug in the code)
-
-  output mode
-  JSON compact CXP Str
-     T       F   
 
 
   input/output example (priority order)
@@ -167,6 +163,113 @@ const reduceClone = (xrf, rstate) => {
   xrf[3] = xrfNew[3];
   return reduceOne(xrf, rstate);
 };  // reduceclone
+/*-------|---------|---------|---------|---------|--------*/
+// addPseudoParam
+// this is to convert the expression into a JSON value
+// for example, "K I" will be converted to "false"
+// it adds one or more pseudo parameters to the expr
+// then reduces it until the pseudo parameters appear
+// the value is determined by which parameter appears
+const reducePseudoParam = (xrf0, rstate0) => {
+  const [sc0, mc0, cnt0, apps0] = rstate0;
+  console.assert(apps0.length == 0);
+  const [plus, apps, ppcnt, org] = xrf0;
+  const xrf = apps.pop();
+  const rstate = [sc0, mc0, cnt0, apps];
+  const [xrf1, rstate1] = reduceXRF(xrf, rstate);
+  const [sc1, mc1, cnt1, apps1] = rstate1;
+  return ({
+    "IA": () => {
+      apps1.push(xrf1);
+      const org1 = apps1[0];
+      apps1.unshift([
+        "app", org1, [
+          "-", ppcnt, void 0, void 0
+        ], void 0
+      ]);
+      //xrf0[0] = "+p";
+      console.assert(plus == "+p");
+      xrf0[1] = apps1;
+      xrf0[2] = ppcnt + 1;
+      xrf0[3] = org;
+      return reducePseudoParam(xrf0, ["OK", mc1, cnt1, []]);
+    },
+    "OT": () => {
+    },
+    "DB": () => {
+    },
+    "ER": () => (
+      [xrf1, [sc1, mc1, cnt1, apps1]]
+    )
+  }[sc1] ?? (() => (  // internal error
+    return [xrf1, ["ER", "IE", cnt1, apps1]];
+  )))();    
+
+
+  
+  if (sc1 == "IA") {
+  } else if (sc1 == "OT") {
+    
+
+  T[a|b|c| b x]
+= T[a|b| K (b x)]
+= T[a| B K T[b| b x]]
+= K (B K; C I x)
+
+  K (B K; C I x)
++ K (B K; C I x) a
+= B K (C I x)
++ B K (C I x) b
+= K (C I x b)
++ K (C I x b) c
+= C I x b
+= I b x
+= b x
+
+  K (B K; C I x) a b
+= B K (C I x) b
+= K (C I x b)
+
+  K (B K; C I x) a b c
+= B K (C I x) b
+= K (C I x b)
+
+
+    
+
+    
+  } else {
+    
+  }
+
+
+  ["IA",     , cnt, apps]  // done reduction: insufficient arguments 
+  ["OT",     , cnt, apps]  // done reduction: output
+  ["DB", "D2", cnt, apps]  // debug break: stopped at comb/var
+  ["DB", "V2", cnt, apps]  // debug break: stopped at var
+
+  ["ER", "EC", cnt, apps]  // error: exceeded maximum count
+  ["ER", "UV", cnt, apps]  // error: undefined variable
+  ["ER", "PH", cnt, apps]  // error: reduced on placeholder
+  ["ER", "NV", cnt, apps]  // error: failed to reduce by native function
+  ["ER", "IE", cnt, apps]  // error: internal error (a bug in the code)
+  
+};
+const addPseudoParam = (xrf, rstate) => {
+  const [sc, mc, cnt, apps] = rstate;
+  apps.push([...xrf]);
+  const org = apps[0];  // original expression
+  apps.unshift([
+    "app", org, [
+      "-", 0, void 0, void 0
+    ], void 0
+  ]);
+  xrf[0] = "+p";  // expression with pseudo parameters
+  xrf[1] = apps;  // application stack
+  xrf[2] = 1;     // number of pseudo parameters
+  xrf[3] = org;   // original expression
+  return reducePseudoParam(xrf, [sc, mc, cnt, []]);
+};  // addPseudoParam
 /*-------|---------|---------|---------|---------|--------*/
 // reduceVar replacs the variable with either one of:
 // - a CXP in library
@@ -651,7 +754,7 @@ const reduceMap = {  // reduce one step
 };
 const reduceOne = (xrf, rstate) => reduceMap[xrf[0]](xrf, rstate);
 export const reduceXRF = (xrf, rstate) => {
-  let [sc, mc, cnt, apps] = [rstate];
+  let [sc, mc, cnt, apps] = rstate;
   while (sc == "OK" && --cnt > 0)  {
     [xrf, [sc, mc, cnt, apps]] = reduceOne(xrf, [sc, mc, cnt, apps]);
   }
