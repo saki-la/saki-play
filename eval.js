@@ -170,90 +170,97 @@ const reduceClone = (xrf, rstate) => {
 // it adds one or more pseudo parameters to the expr
 // then reduces it until the pseudo parameters appear
 // the value is determined by which parameter appears
-const reducePseudoParam = (xrf0, rstate0) => {
+const hasPseudoParam =  (xrf) => ({
+  Sxy: () => hasPseudoParam(xrf[2]) || hasPseudoParam(xrf[3]),
+  Sx: () => hasPseudoParam(xrf[2]),
+  Kx: () => hasPseudoParam(xrf[2]),
+  Cxy: () => hasPseudoParam(xrf[2]) || hasPseudoParam(xrf[3]),
+  Cx: () => hasPseudoParam(xrf[2]),
+  Bxy: () => hasPseudoParam(xrf[2]) || hasPseudoParam(xrf[3]),
+  Bx: () => hasPseudoParam(xrf[2]),
+  app: () => hasPseudoParam(xrf[1]) || hasPseudoParam(xrf[2]),
+  "+f": () => hasPseudoParam(xrf[1]),
+  "-": () => true  // pseudo paramter; <a>
+}[xrf[0]] && () => false)();
+const cancelPseudoParam = (xrf, mc, cnt) => {
+  const [plusp, apps, ppcnt, org] = xrf;
+  xrf[0] = "+f";  // pseudo parameters did not work
+  xrf[1] = org;   // original XRF
+  xrf[2] = void 0;
+  xrf[3] = void 0;
+  return [xrf, ["IA", mc, cnt, []]];
+};
+const reduceExprWithPP = (xrf0, rstate0) => {
   const [sc0, mc0, cnt0, apps0] = rstate0;
   console.assert(apps0.length == 0);
-  const [plus, apps, ppcnt, org] = xrf0;
+  const [plusp, apps, ppcnt, org] = xrf0;
   const xrf = apps.pop();
   const rstate = [sc0, mc0, cnt0, apps];
   const [xrf1, rstate1] = reduceXRF(xrf, rstate);
   const [sc1, mc1, cnt1, apps1] = rstate1;
   return ({
     "IA": () => {
-      apps1.push(xrf1);
-      const org1 = apps1[0];
-      apps1.unshift([
-        "app", org1, [
-          "-", ppcnt, void 0, void 0
-        ], void 0
-      ]);
-      //xrf0[0] = "+p";
-      console.assert(plus == "+p");
-      xrf0[1] = apps1;
-      xrf0[2] = ppcnt + 1;
-      xrf0[3] = org;
-      return reducePseudoParam(xrf0, ["OK", mc1, cnt1, []]);
+      if (ppcnt + 1 <= 64) {  // add another parameter
+        apps1.push(xrf1);
+        const org1 = apps1[0];
+        apps1.unshift([
+          "app", org1, [
+            "-", ppcnt, void 0, void 0
+          ], void 0
+        ]);
+        //xrf0[0] = "+p";
+        console.assert(plus == "+p");
+        xrf0[1] = apps1;
+        xrf0[2] = ppcnt + 1;
+        xrf0[3] = org;
+        return reduceExprWithPP(xrf0, ["OK", mc1, cnt1, []]);
+      } else {  // pseudo parameters did not work 
+        return cancelPseudoParam(xrf0, mc1, cnt1)
+      }
     },
     "OT": () => {
+      let hasPP = false;
+      if (apps1.length > 0) {
+        let [app, x, y, v0];
+        x = apps1[0];
+        let [sc, mc, cnt]  = ["IA", mc1, cnt1];
+        do {
+          [app, x, y, v0] = x;
+          hasPP = hasPseudoParam(y);
+          if (!hasPP) {
+            [, [sc, mc, cnt,]] = reduceXRF(y, ["OK", mc, cnt, []]);
+          }
+        } while (x !== xrf1 && !hasPP && sc == "IA");
+        if (sc != "IA")
+          return [xrf0, [sc, mc, cnt, apps0]];
+      }
+      if (hasPP) {
+        return cancelPseudoParam(xrf0, mc1, cnt1);
+      } else {  // replace it with a selector
+        /*
+          T[p1..pn|s|q1..qm| s x1..xk]
+        = T[p1..pn|s| Km; s x1..xk]
+        = T[p1..pn| B Km T[s| s x1..xk]]
+        = Kn (B Km; C (..(C I x1)..) xk)
+        where
+          n = num
+          m = ppcnt - num - 1
+          k = apps1.length
+          p1..pn, s and q1..qm is not free in x1..xk
+        */
+        const [minus, index, v0, v1] = xrf1;  // pseudo paramter; <a>
+        xrf1[0] = "+/";   // selector (Kn Km); index/count (n/(n+m+1))
+        xrf1[1] = index;  // pseudo paramter index
+        xrf1[2] = ppcnt;  // number of pseudo paramters
+        xrf1[3] = apps1.length;
+        return [xrf1, ["IA", mc1, cnt1, apps1]];
+      }
     },
-    "DB": () => {
-    },
-    "ER": () => (
-      [xrf1, [sc1, mc1, cnt1, apps1]]
-    )
-  }[sc1] ?? (() => (  // internal error
-    return [xrf1, ["ER", "IE", cnt1, apps1]];
-  )))();    
-
-
-  
-  if (sc1 == "IA") {
-  } else if (sc1 == "OT") {
-    
-
-  T[a|b|c| b x]
-= T[a|b| K (b x)]
-= T[a| B K T[b| b x]]
-= K (B K; C I x)
-
-  K (B K; C I x)
-+ K (B K; C I x) a
-= B K (C I x)
-+ B K (C I x) b
-= K (C I x b)
-+ K (C I x b) c
-= C I x b
-= I b x
-= b x
-
-  K (B K; C I x) a b
-= B K (C I x) b
-= K (C I x b)
-
-  K (B K; C I x) a b c
-= B K (C I x) b
-= K (C I x b)
-
-
-    
-
-    
-  } else {
-    
-  }
-
-
-  ["IA",     , cnt, apps]  // done reduction: insufficient arguments 
-  ["OT",     , cnt, apps]  // done reduction: output
-  ["DB", "D2", cnt, apps]  // debug break: stopped at comb/var
-  ["DB", "V2", cnt, apps]  // debug break: stopped at var
-
-  ["ER", "EC", cnt, apps]  // error: exceeded maximum count
-  ["ER", "UV", cnt, apps]  // error: undefined variable
-  ["ER", "PH", cnt, apps]  // error: reduced on placeholder
-  ["ER", "NV", cnt, apps]  // error: failed to reduce by native function
-  ["ER", "IE", cnt, apps]  // error: internal error (a bug in the code)
-  
+    "DB": () => [xrf1, rstate1],
+    "ER": () => [xrf1, rstate1]
+  }[sc1] ?? (
+    () => [xrf1, ["ER", "IE", cnt1, apps1]]  // internal error
+  ))();
 };
 const addPseudoParam = (xrf, rstate) => {
   const [sc, mc, cnt, apps] = rstate;
@@ -270,6 +277,15 @@ const addPseudoParam = (xrf, rstate) => {
   xrf[3] = org;   // original expression
   return reducePseudoParam(xrf, [sc, mc, cnt, []]);
 };  // addPseudoParam
+const reduceSelector = (xrf0, rstate0) => {
+  // 1/1 with 8 params => 8 bit number
+  //          (each param is boolean)
+  // 1/2 with no param => false
+  // 0/2 with no param => true
+  // 0/2 with 2 params => array
+  //          (1st param is any value)
+  //          (2nd param is array or false)
+};
 /*-------|---------|---------|---------|---------|--------*/
 // reduceVar replacs the variable with either one of:
 // - a CXP in library
@@ -1001,8 +1017,17 @@ const X2V_P0 = (xrf0, rstate0) => (mode) => {
     return ["N/A", xrf1, ["ER", "IE", cnt, apps], void 0];
   }))();
 };
-export const XRFtoVal = (xrf, mc, cnt, mode) => {
-  // converts a XRF into the output value
+export const XRFtoVal = (xrf, rstate) => {
+  // reduces a XRF into the value as much as possible
+  // the result will be either:
+  //   boolean or number (with IA state)
+  //   array contains the values (with IA state)
+  //   a selector 
+
+
+
+  
+  // 
   // the value will be either a JSON or string
   // the type is based on the specified mode
   // XRF may (or may not) be reduced based on the state
@@ -1011,6 +1036,9 @@ export const XRFtoVal = (xrf, mc, cnt, mode) => {
   // it continues by calling the next function
   // the function also returns the value and the next func
   // it can go on unless the next function is void 0
+  
+
+  
   return X2V_P0(xrf, ["OK", mc, cnt, []])(mode);
 };
 
