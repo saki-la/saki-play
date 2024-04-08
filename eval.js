@@ -83,7 +83,6 @@ export const setDebugSkip = (ds) => {
 /*-------|---------|---------|---------|---------|--------*/
 // how to construct XRF
 export const CXPtoXRF = (cxp) => ["+x", cxp, void 0, void 0];
-//const cloneXRF = (xrf) => ["+c", xrf, void 0, void 0];
 const JSONtoXRF = (json) => (({
   boolean: () => ["+b", json, void 0, void 0],
   number: () => ["+n", json, void 0, void 0],
@@ -103,6 +102,9 @@ const JSONtoXRF = (json) => (({
 // it need to return rather than keep calling reduceOne
 // since JavaScript consumes stack on every tail call
 // it returns everytime it reduce a combinator
+//
+// reduceCXP converts CXP into XRF as necessary
+// unused CXP will not be converted
 const reduceCXP = (xrf, rstate) => {  // "+x"
   const [px, cxp, v0, v1] = xrf;
   const xrfNew = {
@@ -129,43 +131,41 @@ const reduceCXP = (xrf, rstate) => {  // "+x"
   xrf[3] = xrfNew[3];
   return reduceOne(xrf, rstate);
 };  // reduceCXP
-const reduceClone = (xrf, rstate) => {
-  const [pc, sx, v0, v1] = xrf;
-  const xrfNew = {
-    Sxy: () => ["Sxy", sx[1], cloneXRF(sx[2]), cloneXRF(sx[3])],
-    Sx: () => ["Sx", sx[1], cloneXRF(sx[2]), void 0],
-    S: () => ["S", sx[1], void 0, void 0],
-    Kx: () => ["Kx", sx[1], cloneXRF(sx[2]), void 0],
-    K: () => ["K", sx[1], void 0, void 0],
-    Cxy: () => ["Cxy", sx[1], cloneXRF(sx[2]), cloneXRF(sx[3])],
-    Cx: () => ["Cx", sx[1], cloneXRF(sx[2]), void 0],
-    C: () => ["C", sx[1], void 0, void 0],
-    Bxy: () => ["Bxy", sx[1], cloneXRF(sx[2]), cloneXRF(sx[3])],
-    Bx: () => ["Bx", sx[1], cloneXRF(sx[2]), void 0],
-    B: () => ["B", sx[1], void 0, void 0],
-    I: () => ["I", void 0, void 0, void 0],
-    app: () => ["app", cloneXRF(sx[1]), cloneXRF(sx[2]), void 0],
-    var: () => ["var", sx[1], void 0, void 0],
-    "()": () => ["()", void 0, void 0, void 0],
-    "+x": () => ["+x", sx[1], void 0, void 0],
-    "+c": () => ["+c", sx[1], void 0, void 0],
-    "+b": () => ["+b", sx[1], void 0, void 0],
-    "+n": () => ["+n", sx[1], void 0, void 0],
-    "+s": () => ["+s", sx[1], void 0, void 0],
-    "+a": () => ["+a", sx[1], void 0, void 0],
-    "+j": () => ["+j", sx[1], void 0, void 0],
-    "+f": () => ["+f", sx[1], void 0, void 0],
-    "-": () => ["-", sx[1], sx[2], sx[3]]
-  }[sx[0]]();
-  xrf[0] = xrfNew[0];
-  xrf[1] = xrfNew[1];
-  xrf[2] = xrfNew[2];
-  xrf[3] = xrfNew[3];
-  return reduceOne(xrf, rstate);
-};  // reduceclone
 /*-------|---------|---------|---------|---------|--------*/
-// addPseudoParam
-// this is to convert the expression into a JSON value
+// the pseudo parameters is used to convert into a selector
+//
+// an example of selector is:
+//   a|b|c|d| c x y
+// it selects c from the arguments a, b, c and d
+// note that c takes two parameters x and y in the example
+// the expression will be converted to:
+//   2/:4:2 x y
+// the "/:" and ":" operators indicates it is a selector
+// in the form of "i/:d:p":
+//   i is the 0 based index of the selector
+//   d is the denominator (the number of arguments)
+//   p is the number of parameters of the selector
+// and, the selector can be converted to the combinators as:
+//   K2 (B K; C (C I x) y)
+//
+// some selector can be convertd to JSON
+//   a|b| b
+// by using the selector, this can be converted to:
+//   (1/:2:0)
+// it will be specially converted to a JSON value; false
+// 
+// another example is to convert to JSON array:
+//    f|x| f e1; f|x| f e2; f|x| x
+// => (0/:2:2 e1; 0/:2:2 e2 1/:2:0)
+// => [e1, e2]
+//
+// 
+
+
+
+
+// 
+// 
 // for example, "K I" will be converted to "false"
 // it adds one or more pseudo parameters to the expr
 // then reduces it until the pseudo parameters appear
@@ -179,7 +179,6 @@ const hasPseudoParam =  (xrf) => ({
   Bxy: () => hasPseudoParam(xrf[2]) || hasPseudoParam(xrf[3]),
   Bx: () => hasPseudoParam(xrf[2]),
   app: () => hasPseudoParam(xrf[1]) || hasPseudoParam(xrf[2]),
-  "+f": () => hasPseudoParam(xrf[1]),
   "-": () => true  // pseudo paramter; <a>
 }[xrf[0]] && () => false)();
 const cancelPseudoParam = (xrf, mc, cnt) => {
