@@ -1,4 +1,7 @@
 /*
+  evalXRF - evaluates XRF strictly and makes value as the result
+  reduceXRF - reduces XRF according to rules
+
   CXP (Combinator eXPression)
   ["Sxy", n, exprX, exprY]
   ["Sx", n, exprX]
@@ -39,12 +42,11 @@
   ["+s", str, void 0, void 0]   // JSON string; "abc"
   ["+a", ary, void 0, void 0]   // JSON array; [x, y, z]
   ["+j", json, void 0, void 0]  // any other JSON (null or object)
-  ["+p", apps, ppcnt, org]      // expression with pseudo paramters (ppcnt <= 64)
+  ["+.", index, cnt, void 0]    // selector; i.d.p (e.g. 0.2.0 == K)
+  ["+u", xrf, void 0, void 0]   // unevaluable (pseudo parameters did not work)
   ["-", num, void 0, void 0]    // pseudo paramter; <a>
-  ["+/", index, cnt, void 0]    // selector (Kn Km); index/count (n/(n+m+1))
-  ["+f", xrf, void 0, void 0]   // pseudo parameters did not work
 
-  RS (Reduction State)
+  rstate (Reduction State)
   ["OK", "ND", cnt, apps]  // keep going with the reduction count (no debugging)
   ["OK", "D0", cnt, apps]  // under debugging: find comb/var
   ["OK", "D1", cnt, apps]  // under debugging: reduce a comb/var then find next
@@ -54,12 +56,12 @@
   ["OT",     , cnt, apps]  // done reduction: output
   ["DB", "D2", cnt, apps]  // debug break: stopped at comb/var
   ["DB", "V2", cnt, apps]  // debug break: stopped at var
-
   ["ER", "EC", cnt, apps]  // error: exceeded maximum count
   ["ER", "UV", cnt, apps]  // error: undefined variable
   ["ER", "PH", cnt, apps]  // error: reduced on placeholder
   ["ER", "NV", cnt, apps]  // error: failed to reduce by native function
   ["ER", "IE", cnt, apps]  // error: internal error (a bug in the code)
+
 
 
   input/output example (priority order)
@@ -131,160 +133,6 @@ const reduceCXP = (xrf, rstate) => {  // "+x"
   xrf[3] = xrfNew[3];
   return reduceOne(xrf, rstate);
 };  // reduceCXP
-/*-------|---------|---------|---------|---------|--------*/
-// the pseudo parameters is used to convert into a selector
-//
-// an example of selector is:
-//   a|b|c|d| c x y
-// it selects c from the arguments a, b, c and d
-// note that c takes two parameters x and y in the example
-// the expression will be converted to:
-//   2/:4:2 x y
-// the "/:" and ":" operators indicates it is a selector
-// in the form of "i/:d:p":
-//   i is the 0 based index of the selector
-//   d is the denominator (the number of arguments)
-//   p is the number of parameters of the selector
-// and, the selector can be converted to the combinators as:
-//   K2 (B K; C (C I x) y)
-//
-// some selector can be convertd to JSON
-//   a|b| b
-// by using the selector, this can be converted to:
-//   (1/:2:0)
-// it will be specially converted to a JSON value; false
-// 
-// another example is to convert to JSON array:
-//    f|x| f e1; f|x| f e2; f|x| x
-// => (0/:2:2 e1; 0/:2:2 e2 1/:2:0)
-// => [e1, e2]
-//
-// 
-
-
-
-
-// 
-// 
-// for example, "K I" will be converted to "false"
-// it adds one or more pseudo parameters to the expr
-// then reduces it until the pseudo parameters appear
-// the value is determined by which parameter appears
-const hasPseudoParam =  (xrf) => ({
-  Sxy: () => hasPseudoParam(xrf[2]) || hasPseudoParam(xrf[3]),
-  Sx: () => hasPseudoParam(xrf[2]),
-  Kx: () => hasPseudoParam(xrf[2]),
-  Cxy: () => hasPseudoParam(xrf[2]) || hasPseudoParam(xrf[3]),
-  Cx: () => hasPseudoParam(xrf[2]),
-  Bxy: () => hasPseudoParam(xrf[2]) || hasPseudoParam(xrf[3]),
-  Bx: () => hasPseudoParam(xrf[2]),
-  app: () => hasPseudoParam(xrf[1]) || hasPseudoParam(xrf[2]),
-  "-": () => true  // pseudo paramter; <a>
-}[xrf[0]] && () => false)();
-const cancelPseudoParam = (xrf, mc, cnt) => {
-  const [plusp, apps, ppcnt, org] = xrf;
-  xrf[0] = "+f";  // pseudo parameters did not work
-  xrf[1] = org;   // original XRF
-  xrf[2] = void 0;
-  xrf[3] = void 0;
-  return [xrf, ["IA", mc, cnt, []]];
-};
-const reduceExprWithPP = (xrf0, rstate0) => {
-  const [sc0, mc0, cnt0, apps0] = rstate0;
-  console.assert(apps0.length == 0);
-  const [plusp, apps, ppcnt, org] = xrf0;
-  const xrf = apps.pop();
-  const rstate = [sc0, mc0, cnt0, apps];
-  const [xrf1, rstate1] = reduceXRF(xrf, rstate);
-  const [sc1, mc1, cnt1, apps1] = rstate1;
-  return ({
-    "IA": () => {
-      if (ppcnt + 1 <= 64) {  // add another parameter
-        apps1.push(xrf1);
-        const org1 = apps1[0];
-        apps1.unshift([
-          "app", org1, [
-            "-", ppcnt, void 0, void 0
-          ], void 0
-        ]);
-        //xrf0[0] = "+p";
-        console.assert(plus == "+p");
-        xrf0[1] = apps1;
-        xrf0[2] = ppcnt + 1;
-        xrf0[3] = org;
-        return reduceExprWithPP(xrf0, ["OK", mc1, cnt1, []]);
-      } else {  // pseudo parameters did not work 
-        return cancelPseudoParam(xrf0, mc1, cnt1)
-      }
-    },
-    "OT": () => {
-      let hasPP = false;
-      if (apps1.length > 0) {
-        let [app, x, y, v0];
-        x = apps1[0];
-        let [sc, mc, cnt]  = ["IA", mc1, cnt1];
-        do {
-          [app, x, y, v0] = x;
-          hasPP = hasPseudoParam(y);
-          if (!hasPP) {
-            [, [sc, mc, cnt,]] = reduceXRF(y, ["OK", mc, cnt, []]);
-          }
-        } while (x !== xrf1 && !hasPP && sc == "IA");
-        if (sc != "IA")
-          return [xrf0, [sc, mc, cnt, apps0]];
-      }
-      if (hasPP) {
-        return cancelPseudoParam(xrf0, mc1, cnt1);
-      } else {  // replace it with a selector
-        /*
-          T[p1..pn|s|q1..qm| s x1..xk]
-        = T[p1..pn|s| Km; s x1..xk]
-        = T[p1..pn| B Km T[s| s x1..xk]]
-        = Kn (B Km; C (..(C I x1)..) xk)
-        where
-          n = num
-          m = ppcnt - num - 1
-          k = apps1.length
-          p1..pn, s and q1..qm is not free in x1..xk
-        */
-        const [minus, index, v0, v1] = xrf1;  // pseudo paramter; <a>
-        xrf1[0] = "+/";   // selector (Kn Km); index/count (n/(n+m+1))
-        xrf1[1] = index;  // pseudo paramter index
-        xrf1[2] = ppcnt;  // number of pseudo paramters
-        xrf1[3] = apps1.length;
-        return [xrf1, ["IA", mc1, cnt1, apps1]];
-      }
-    },
-    "DB": () => [xrf1, rstate1],
-    "ER": () => [xrf1, rstate1]
-  }[sc1] ?? (
-    () => [xrf1, ["ER", "IE", cnt1, apps1]]  // internal error
-  ))();
-};
-const addPseudoParam = (xrf, rstate) => {
-  const [sc, mc, cnt, apps] = rstate;
-  apps.push([...xrf]);
-  const org = apps[0];  // original expression
-  apps.unshift([
-    "app", org, [
-      "-", 0, void 0, void 0
-    ], void 0
-  ]);
-  xrf[0] = "+p";  // expression with pseudo parameters
-  xrf[1] = apps;  // application stack
-  xrf[2] = 1;     // number of pseudo parameters
-  xrf[3] = org;   // original expression
-  return reducePseudoParam(xrf, [sc, mc, cnt, []]);
-};  // addPseudoParam
-const reduceSelector = (xrf0, rstate0) => {
-  // 1/1 with 8 params => 8 bit number
-  //          (each param is boolean)
-  // 1/2 with no param => false
-  // 0/2 with no param => true
-  // 0/2 with 2 params => array
-  //          (1st param is any value)
-  //          (2nd param is array or false)
-};
 /*-------|---------|---------|---------|---------|--------*/
 // reduceVar replacs the variable with either one of:
 // - a CXP in library
@@ -779,475 +627,170 @@ export const reduceXRF = (xrf, rstate) => {
     return [xrf, [sc, mc, cnt, apps]];
 };
 /*-------|---------|---------|---------|---------|--------*/
-export const XRFtoCXP = (xrf) => ({
-  Sxy: () => ["Sxy", xrf[1], XRFtoCXP(xrf[2]), XRFtoCXP(xrf[3])],
-  Sx: () => ["Sx", xrf[1], XRFtoCXP(xrf[2])],
-  S: () => ["S", xrf[1]],
-  Kx: () => ["Kx", xrf[1], XRFtoCXP(xrf[2])],
-  K: () => ["K", xrf[1]],
-  Cxy: () => ["Cxy", xrf[1], XRFtoCXP(xrf[2]), XRFtoCXP(xrf[3])],
-  Cx: () => ["Cx", xrf[1], XRFtoCXP(xrf[2])],
-  C: () => ["C", xrf[1]],
-  Bxy: () => ["Bxy", xrf[1], XRFtoCXP(xrf[2]), XRFtoCXP(xrf[3])],
-  Bx: () => ["Bx", xrf[1], XRFtoCXP(xrf[2])],
-  B: () => ["B", xrf[1]],
-  I: () => ["I"],
-  app: () => ["app", XRFtoCXP(xrf[1]), XRFtoCXP(xrf[2])],
-  var: () => ["var", xrf[1]],
-  "()": () => ["()"],
-  "+x": () => xrf[1],
-  "+c": () => XRFtoCXP(xrf[1]),
-  "+b": () => ["+", xrf[1]],
-  "+n": () => ["+", xrf[1]],
-  "+s": () => ["+", xrf[1]],
-  "+a": () => ["+", xrf[1]],
-  "+j": () => ["+", xrf[1]],
-  "+f": () => XRFtoCXP(xrf[1]),
-}[xrf[0]]());  // XRFtoCXP
-const NtoStr = (n) => (n == 1 ? "" : "" + n);
-const CXPtoStr = (cxp) => ({
-  Sxy: () => "(S" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + " " +
-  CXPtoStr(cxp[3]) + ")",
-  Sx: () => "(S" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  S: () => "S" + NtoStr(cxp[1]),
-  Kx: () => "(K" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  K: () => "K" + NtoStr(cxp[1]),
-  Cxy: () =>
-  "(C" +
-  NtoStr(cxp[1]) +
-  " " +
-  CXPtoStr(cxp[2]) +
-  " " +
-  CXPtoStr(cxp[3]) +
-  ")",
-  Cx: () => "(C" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  C: () => "C" + NtoStr(cxp[1]),
-  Bxy: () =>
-  "(B" +
-  NtoStr(cxp[1]) +
-  " " +
-  CXPtoStr(cxp[2]) +
-  " " +
-  CXPtoStr(cxp[3]) +
-  ")",
-  Bx: () => "(B" + NtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  B: () => "B" + NtoStr(cxp[1]),
-  I: () => "I",
-  app: () => "(" + CXPtoStr(cxp[1]) + " " + CXPtoStr(cxp[2]) + ")",
-  var: () => cxp[1],
-  "()": () => "()",
-  "+": () => JSON.stringify(cxp[1])
-}[cxp[0]]());  // CXPtoStr
-const XRFtoComb = (mode, xrf) => {  // stringify XRF in combinator form
-  if (mode.outputComb) {
-    return CXPtoStr(XRFtoCXP(xrf));
-  } else {
-    return XRFtoCXP(xrf);
-  }
+// the pseudo parameters is used to convert into a selector
+//
+// an example of selector is:
+//   a|b|c|d| c x y
+// it selects c from the arguments a, b, c and d
+// note that c takes two parameters x and y in the example
+// the expression will be converted to:
+//   2.4.2 x y
+// the dot ternary operator indicates it is a selector
+// in the form of "i.d.p":
+//   i is the 0 based index of the selector
+//   d is the denominator (the number of arguments)
+//   p is the number of parameters of the selector
+// and, the selector can be converted to the combinators as:
+//   K2 (B K; C (C I x) y)
+//
+// some selector can be convertd to JSON
+//   a|b| b
+// by using the selector, this can be converted to:
+//   1.2.0
+// it will be specially converted to a JSON value; false
+// 
+// another example is to convert to JSON array:
+//    f|x| f e1; f|x| f e2; f|x| x
+// => 0.2.2 e1; 0.2.2 e2 1.2.0
+// => [e1, e2]
+//
+// 
+
+
+
+
+// 
+// 
+// for example, "K I" will be converted to "false"
+// it adds one or more pseudo parameters to the expr
+// then reduces it until the pseudo parameters appear
+// the value is determined by which parameter appears
+const hasPseudoParam =  (xrf) => ({
+  Sxy: () => hasPseudoParam(xrf[2]) || hasPseudoParam(xrf[3]),
+  Sx: () => hasPseudoParam(xrf[2]),
+  Kx: () => hasPseudoParam(xrf[2]),
+  Cxy: () => hasPseudoParam(xrf[2]) || hasPseudoParam(xrf[3]),
+  Cx: () => hasPseudoParam(xrf[2]),
+  Bxy: () => hasPseudoParam(xrf[2]) || hasPseudoParam(xrf[3]),
+  Bx: () => hasPseudoParam(xrf[2]),
+  app: () => hasPseudoParam(xrf[1]) || hasPseudoParam(xrf[2]),
+  "-": () => true  // pseudo paramter; <a>
+}[xrf[0]] && () => false)();
+const cancelPseudoParam = (xrf, mc, cnt) => {
+  const [plusp, apps, ppcnt, org] = xrf;
+  xrf[0] = "+f";  // pseudo parameters did not work
+  xrf[1] = org;   // original XRF
+  xrf[2] = void 0;
+  xrf[3] = void 0;
+  return [xrf, ["IA", mc, cnt, []]];
 };
-const AryToStr = (mode, json) => {
-  if (
-    mode.outputStr &&
-    toString.call(json) == "[object Array]" &&
-    json.reduce((a, e) => a && typeof e == "number", true)
-  ) {
-    const u8a = new Uint8Array(json);
-    return new TextDecoder().decode(u8a); // UTF-8
-  } else {
-    return json;
-  }
-};
-const JSONtoStr = (mode, json) => {
-  
-};
-const myDebugStep = (debugStep0) => (
-  (debugStep0 != 0) ? ((mode) => {
-    const [json, rstate, debugStep1] = debugStep0(mode);
-    const [mc, sc, cnt, apps] = rstate;
-    const str = AryToStr(mode, json) ?? XRFtoComb(mode, apps[0]);
-    return [str, rstate, myDebugStep(debugStep1)];
-  }) : void 0;
-);
-const SourceCXPtoStr = (rstate) => {
-  let [mc, sc, cnt, apps] = rstate;
-  (mode) => 
-};
-/*-------|---------|---------|---------|---------|--------*/
-const X2V_P2 = (xrf0, rstate0) => (mode) => {
-  // (3) converts the XRF with two parameters
-  const [xrf1, rstate1] = reduceXRF(xrf0, rstate0);
-  const [sc, mc, cnt, apps] = rstate1;
+const reduceExprWithPP = (xrf0, rstate0) => {
+  const [sc0, mc0, cnt0, apps0] = rstate0;
+  console.assert(apps0.length == 0);
+  const [plusp, apps, ppcnt, org] = xrf0;
+  const xrf = apps.pop();
+  const rstate = [sc0, mc0, cnt0, apps];
+  const [xrf1, rstate1] = reduceXRF(xrf, rstate);
+  const [sc1, mc1, cnt1, apps1] = rstate1;
   return ({
-    "DB": () => {  // debug break
-      const str = X2V_toComb(mode, xrf1);
-      const rstate2 = ["OK", mc, cnt, apps];
-      return [str, xrf1, rstate1, X2V_P1(xrf1, rstate2)];
-    },
-    "IA": () => {  // insufficient arguments
-      return X2V_P1NonNum(xrf1, rstate1)(mode);
-    },
-  
-};
-const X2V_P1NumBit = (xrf0, next0, xrfE, u8) => (mode) => {
-  const [val1, xrf1, rstate1, next1] = next0(mode);
-  const [sc, mc, cnt, apps] = rstate1;
-  return ({
-    "DB": () => {  // debug break
-      console.assert(next1 !== void 0);
-      const next2 = X2V_P1NumBit(xrf0, next1, xrfE, u8);
-      return [val1, xrf1, rstate1, next2];
-    },
-    "IA": () => {  // insufficient arguments
-      console.assert(next1 !== void 0);
-      const [app, x, y, v1] = xrf0;
-      console.assert(app == "app");
-      const modeJSON = {
-        outputJSON: true,
-        outputCXP: false,
-        outputStr: true,
-        compact: true
-      };
-      const [val2, xrf2, rstate2, next2] = X2V_P0(y, ["OK", mc, cnt, []])(modeJSON);
-      console.assert(next2 === void 0);
-      if (typeof val2 == "boolean") {
-        const b = (val2) ? 1 : 0;
-        const u8New = (u8 << 1) | b;
-        if (x !== xrfE) {
-          const [xapp, xx, xy, xv1] = x;
-          console.assert(xapp == "app");
-          const next2 = X2V_P0(xy, ["OK", mc, cnt, []]);
-          return X2V_P1NumBit(x, next1, xrfE, u8New);
-        } else {
-          x[0] = "+n";
-          x[1] = u8New;
-          x[2] = void 0;
-          x[3] = void 0;
-          return [u8New, x, [sc, mc, cnt, apps], void 0];
-        }
-      } else {  // not boolean
-        return X2V_P2(xrf1, rstate1)(mode);
+    "IA": () => {
+      if (ppcnt + 1 <= 64) {  // add another parameter
+        apps1.push(xrf1);
+        const org1 = apps1[0];
+        apps1.unshift([
+          "app", org1, [
+            "-", ppcnt, void 0, void 0
+          ], void 0
+        ]);
+        //xrf0[0] = "+p";
+        console.assert(plus == "+p");
+        xrf0[1] = apps1;
+        xrf0[2] = ppcnt + 1;
+        xrf0[3] = org;
+        return reduceExprWithPP(xrf0, ["OK", mc1, cnt1, []]);
+      } else {  // pseudo parameters did not work 
+        return cancelPseudoParam(xrf0, mc1, cnt1)
       }
     },
-    "ER": () => ["N/A", rstate1, void 0]
-  }[sc] ?? (() => {  // internal error
-    return ["N/A", ["ER", "IE", cnt, apps], void 0];
-  }))();
-};
-const X2V_P1 = (xrf0, rstate0) => (mode) => {
-  // (2) converts the XRF with a parameter
-  const [xrf1, rstate1] = reduceXRF(xrf0, rstate0);
-  const [sc, mc, cnt, apps] = rstate1;
-  return ({
-    "DB": () => {  // debug break
-      const str = X2V_toComb(mode, xrf1);
-      const rstate2 = ["OK", mc, cnt, apps];
-      return [str, xrf1, rstate1, X2V_P1(xrf1, rstate2)];
-    },
-    "IA": () => {  // insufficient arguments
-      return X2V_P2(xrf1, rstate1)(mode);
-    },
-    "OT": () => {  // output sentinel which set in X2V_P0()
-      const [minus, id, v1, v2] = xrf1;
-      console.assert(minus == "-" && id == 0, minus, id);
-
-      // check whether it is a number such as:
-      //   (s| s K (K I) (K I) (K I) (K I) (K I) K (K I))
-      //   => 65 = 0x41 = 0b01000001 = 'A'
-      if (apps.length != 8)
-        return X2V_P2(xrf1, rstate1)(mode);
-
-      console.assert(xrf0 === apps[0]);
-      console.assert(apps[0][1] === apps[1]);
-      console.assert(apps[1][1] === apps[2]);
-      console.assert(apps[2][1] === apps[3]);
-      console.assert(apps[3][1] === apps[4]);
-      console.assert(apps[4][1] === apps[5]);
-      console.assert(apps[5][1] === apps[6]);
-      console.assert(apps[6][1] === apps[7]);
-      console.assert(apps[7][1] === xrf1);
-      const [out, sent, v0, v1] = xrf1;
-      console.assert(out == "-" && sent == 0, out, sent);
-      const [app, x, y, v1] = xrf0;
-      console.assert(app == "app");
-      const next2 = X2V_P0(y, ["OK", mc, cnt, []]);
-      return X2V_P1NumBit(xrf0, next2, xrf1, 0)(mode);
-    },
-    "ER": () => ["N/A", rstate1, void 0]
-  }[sc] ?? (() => {  // internal error
-    return ["N/A", ["ER", "IE", cnt, apps], void 0];
-  }))();
-};
-const X2V_P0 = (xrf0, rstate0) => (mode) => {
-  // (1) converts the XRF without adding any parameters
-  const [xrf1, rstate1] = reduceXRF(xrf0, rstate0);
-  const [sc, mc, cnt, apps] = rstate1;
-  return ({
-    "DB": () => {  // debug break
-      const str = X2V_toComb(mode, xrf1);
-      const rstate2 = ["OK", mc, cnt, apps];
-      return [str, xrf1, rstate1, X2V_P0(xrf1, rstate2)];
-    },
-    "IA": () => {  // insufficient arguments
-      const [plus, data, v0, v1] = xrf1;
-      const jsonValue = () => {
-        return [X2V_JtoS(mode, data), rstate1, void 0];
-      };
-      return ({  // easier way to convert
-        "+b": jsonValue,  // JSON boolean
-        "+n": jsonValue,  // JSON number
-        "+s": jsonValue,  // JSON string
-        "+a": jsonValue,  // JSON array
-        "+j": jsonValue,  // any other JSON
-        "+f": () => {  // already failed to convert
-          return [X2V_toComb(mode, data), rstate1, void 0];
-        }
-      }[plus] ?? (() => {  // hard way
-        // recognize output by placing a sentinel
-        const xrf2 = [
-          "app", xrf1, [
-            "-", 0, void 0, void 0  // sentinel#0 to output
-          ], void 0
-        ];
-        return X2V_P1(xrf2, ["OK", mc, cnt, apps])(mode);
-      }))();
-    },
-    "ER": () => ["N/A", rstate1, void 0]
-  }[sc] ?? (() => {  // internal error
-    return ["N/A", xrf1, ["ER", "IE", cnt, apps], void 0];
-  }))();
-};
-export const XRFtoVal = (xrf, rstate) => {
-  // reduces a XRF into the value as much as possible
-  // the result will be either:
-  //   boolean or number (with IA state)
-  //   array contains the values (with IA state)
-  //   a selector 
-
-
-
-  
-  // 
-  // the value will be either a JSON or string
-  // the type is based on the specified mode
-  // XRF may (or may not) be reduced based on the state
-  // returns the coverted value and the next function
-  // the reduction can be stopped when in the debug state
-  // it continues by calling the next function
-  // the function also returns the value and the next func
-  // it can go on unless the next function is void 0
-  
-
-  
-  return X2V_P0(xrf, ["OK", mc, cnt, []])(mode);
-};
-
-
-
-
-  // harder way to convert (avoid retrying it)
-  const failedToConvertJSON = ()=> {
-    xrf0[1] = [...xrf0];
-    xrf0[0] = "+f";
-    xrf0[2] = void 0;
-    xrf0[3] = void 0;
-    return void 0;
-  };
-
-
-  let [[sentl, sentlData], [sc, mc, cnt, apps]] = reduceXRF(xrf1);  // internal for output
-  if (sc != "DN") return failedToConvertJSON();
-
-
-
-  // give another sentinel to check boolean or array
-  const xrf2 = [
-    "app", xrf1, [
-      "-", 1, void 0, void 0  // sentinel#1 to output
-    ], void 0
-  ];
-  [[sentl, sentlData], [sc, mc, cnt, apps]] = reduceXRF(xrf2);  // internal for output
-  if (sc != "DN") return failedToConvertJSON();
-
-  if (sc == "DN" && mc == "OT") {
-    if (apps.length == 0) {  // boolean or an end of array (f|x| x)
-      const b = (sentlData == 0);  // 0: true, 1: false
-      xrf0[0] = "+b";
-      xrf0[1] = b;
-      xrf0[2] = void 0;
-      xrf0[3] = void 0;
-      return b;
-    } else {
-      const [app, x, y] = xrf2;
-      if (apps.length == 2 && app == "app" && sentlData == 0) {
-        const [appX, xx, xy] = x;
-        if (appX == "app") {
-          // f|x| f data subArray
-          const data = AryToStr(mode, XRFtoJSON(mode, xy));
-          if (data !== void 0) {
-            const subAr = XRFtoJSON(mode, y);
-            let a = void 0;
-            if (toString.call(subAr) == "[object Array]") {
-              a = [data].concat(subAr);
-            } else if (typeof subAr == "boolean" && !subAr) {  // subAr is false
-              a = [data];
-            }
-            if (a != void 0) {
-              xrf0[0] = "+a";
-              xrf0[1] = a;
-              xrf0[2] = void 0;
-              xrf0[3] = void 0;
-              return a;
-            }
+    "OT": () => {
+      let hasPP = false;
+      if (apps1.length > 0) {
+        let [app, x, y, v0];
+        x = apps1[0];
+        let [sc, mc, cnt]  = ["IA", mc1, cnt1];
+        do {
+          [app, x, y, v0] = x;
+          hasPP = hasPseudoParam(y);
+          if (!hasPP) {
+            [, [sc, mc, cnt,]] = reduceXRF(y, ["OK", mc, cnt, []]);
           }
-        }
+        } while (x !== xrf1 && !hasPP && sc == "IA");
+        if (sc != "IA")
+          return [xrf0, [sc, mc, cnt, apps0]];
       }
-    }
-  }
-
-  // give some more sentinels to check LCX
-  //         0   1   2  3 4 5 6 7 8
-  //   xrf lam app var ph s k c b i
-  const xrf3 = [
-    "app", [
-      "app", [
-        "app", [
-          "app", [
-            "app", [
-              "app", [
-                "app", [
-                  "app", xrf2, [  // sentinel#0 and #1
-                    "-", 2, void 0, void 0  // sentinel#2 to output
-                  ], void 0
-                ], [
-                  "-", 3, void 0, void 0  // sentinel#3 to output
-                ], void 0
-              ], [
-                "-", 4, void 0, void 0  // sentinel#4 to output
-              ], void 0
-            ], [
-              "-", 5, void 0, void 0  // sentinel#5 to output
-            ], void 0
-          ], [
-            "-", 6, void 0, void 0  // sentinel#6 to output
-          ], void 0
-        ], [
-          "-", 7, void 0, void 0  // sentinel#7 to output
-        ], void 0
-      ], [
-        "-", 8, void 0, void 0  // sentinel#8 to output
-      ], void 0
-    ], [
-      "-", 9, void 0, void 0  // sentinel#9 to output
+      if (hasPP) {
+        return cancelPseudoParam(xrf0, mc1, cnt1);
+      } else {  // replace it with a selector
+        /*
+          T[p1..pn|s|q1..qm| s x1..xk]
+        = T[p1..pn|s| Km; s x1..xk]
+        = T[p1..pn| B Km T[s| s x1..xk]]
+        = Kn (B Km; C (..(C I x1)..) xk)
+        where
+          n = num
+          m = ppcnt - num - 1
+          k = apps1.length
+          p1..pn, s and q1..qm is not free in x1..xk
+        */
+        const [minus, index, v0, v1] = xrf1;  // pseudo paramter; <a>
+        xrf1[0] = "+/";   // selector (Kn Km); index/count (n/(n+m+1))
+        xrf1[1] = index;  // pseudo paramter index
+        xrf1[2] = ppcnt;  // number of pseudo paramters
+        xrf1[3] = apps1.length;
+        return [xrf1, ["IA", mc1, cnt1, apps1]];
+      }
+    },
+    "DB": () => [xrf1, rstate1],
+    "ER": () => [xrf1, rstate1]
+  }[sc1] ?? (
+    () => [xrf1, ["ER", "IE", cnt1, apps1]]  // internal error
+  ))();
+};
+const addPseudoParam = (xrf, rstate) => {
+  const [sc, mc, cnt, apps] = rstate;
+  apps.push([...xrf]);
+  const org = apps[0];  // original expression
+  apps.unshift([
+    "app", org, [
+      "-", 0, void 0, void 0
     ], void 0
-  ];  // xrf3
-  [[sentl, sentlData], [sc, mc, cnt, apps]] = reduceXRF(xrf3);  // internal for output
-  if (sc != "DN") return failedToConvertJSON();
-
-  if (sc == "DN" && mc == "OT") {
-    const ret = [
-      () => {  // 0: lam v x vf (lambda)
-        const [app, x, y] = xrf3;
-        const [appX, xx, xy] = x;
-        const [appXX, xxx, xxy] = xx;
-        if (
-          apps.length == 3 &&
-          app == "app" &&
-          appX == "app" &&
-          appXX == "app"
-        ) {
-          const lcxV = AryToStr(mode, XRFtoJSON(mode, xxy));  // variable name
-          const lcxX = XRFtoJSON(mode, xy); // expression
-          const lcxVF = XRFtoJSON(mode, y); // array of string
-          if (lcxV != void 0 && lcxX != void 0 && lcxVF != void 0)
-            return ["LCX:lam", lcxV, lcxX, lcxVF];
-        }
-        return void 0;
-      },
-      () => {  // 1: app x y vf (application)
-        const [app, x, y] = xrf3;
-        const [appX, xx, xy] = x;
-        const [appXX, xxx, xxy] = xx;
-        if (
-          apps.length == 3 &&
-          app == "app" &&
-          appX == "app" &&
-          appXX == "app"
-        ) {
-          const lcxX = XRFtoJSON(mode, xxy);  // expression x
-          const lcxY = XRFtoJSON(mode, xy);   // expression y
-          const lcxVF = XRFtoJSON(mode, y);   // array of string
-          if (lcxX != void 0 && lcxY != void 0 && lcxVF != void 0)
-            return ["LCX:app", lcxX, lcxY, lcxVF];
-        }
-        return void 0;
-      },
-      () => {  // 2: var v (variable)
-        const [app, x, y] = xrf3;
-        if (apps.length == 1 && app == "app") {
-          const lcxV = AryToStr(mode, XRFtoJSON(mode, y));  // variable name
-          if (lcxV != void 0) return ["LCX:var", lcxV];
-        }
-        return void 0;
-      },
-      () => {  // 3: js j (JSON value)
-        const [app, x, y] = xrf3;
-        if (apps.length == 1 && app == "app") {
-          const lcxJ = AryToStr(mode, XRFtoJSON(mode, y));  // JSON value
-          if (lcxJ != void 0) return ["LCX:+", lcxJ];
-        }
-        return void 0;
-      },
-      () => {  // 4: ph (placeholder)
-        if (apps.length == 0) {
-          return ["LCX:()"];
-        }
-        return void 0;
-      },
-      () => {  // 5: s n (Sn combinator)
-        const [app, x, y] = xrf3;
-        if (apps.length == 1 && app == "app") {
-          const lcxN = XRFtoJSON(mode, y);  // n
-          if (lcxN != void 0) return ["LCX:S", lcxN];
-        }
-        return void 0;
-      },
-      () => {  // 6: k n (Kn combinator)
-        const [app, x, y] = xrf3;
-        if (apps.length == 1 && app == "app") {
-          const lcxN = XRFtoJSON(mode, y);  // n
-          if (lcxN != void 0) return ["LCX:K", lcxN];
-        }
-        return void 0;
-      },
-      () => {  // 7: c n (Cn combinator)
-        const [app, x, y] = xrf3;
-        if (apps.length == 1 && app == "app") {
-          const lcxN = XRFtoJSON(mode, y);  // n
-          if (lcxN != void 0) return ["LCX:C", lcxN];
-        }
-        return void 0;
-      },
-      () => {  // 8: b n (Bn combinator)
-        const [app, x, y] = xrf3;
-        if (apps.length == 1 && app == "app") {
-          const lcxN = XRFtoJSON(mode, y);  // n
-          if (lcxN != void 0) return ["LCX:B", lcxN];
-        }
-        return void 0;
-      },
-      () => {  // 9: i (I combinator)
-        if (apps.length == 0) {
-          return ["LCX:I"];
-        }
-        return void 0;
-      }
-    ][sentlData]();
-    if (ret != void 0) {
-    //  xrf0[0] = "+a";
-    //  xrf0[1] = ret;
-    //  xrf0[2] = void 0;
-    //  xrf0[3] = void 0;
-      return ret; 
-    }
-  }
+  ]);
+  xrf[0] = "+p";  // expression with pseudo parameters
+  xrf[1] = apps;  // application stack
+  xrf[2] = 1;     // number of pseudo parameters
+  xrf[3] = org;   // original expression
+  return reducePseudoParam(xrf, [sc, mc, cnt, []]);
+};  // addPseudoParam
+const evX_reduce = (xrf0, rstate0) => {
+  const [xrf1, rstate1] = reduceXRF(xrf0, rstate0);
+  const [sc1, mc1, cnt1, apps1] = rstate1;
+  const rstate2 = [sc1, "D1", 
+  apps1.push(xrf1);
+  const xrfResult = apps1[0];
+  return ({
+    "IA": () => {
+    },
+    "OT": () => {
+    },
+    "DB": () => ["SC", "DB", cnt1,   // Debug Break
+    },
+    "ER": () => [xrfResult, sc1, mc1, cnt1, void 0]
+  }[sc1] ?? (() => [xrfResult, "ER", "IE", cnt1, void 0]));
+};
+const evalXRF = (xrf0, db0, cnt0) => (
+  const mc0 = ({
+    "ND": "D0"
+  evX_reduce(xrf0, ["OK", mc0, cnt0, []])
+);  // evalXRF
+/*-------|---------|---------|---------|---------|--------*/
 
