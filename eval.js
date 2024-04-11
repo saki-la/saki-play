@@ -627,7 +627,8 @@ export const reduceXRF = (xrf, rstate) => {
     return [xrf, [sc, mc, cnt, apps]];
 };
 /*-------|---------|---------|---------|---------|--------*/
-// the pseudo parameters is used to convert into a selector
+// evalXRF converts XRF into a selector if it is possible
+// pseudo parameters helps to convert it
 //
 // an example of selector is:
 //   a|b|c|d| c x y
@@ -676,14 +677,7 @@ const hasPseudoParam =  (xrf) => ({
   app: () => hasPseudoParam(xrf[1]) || hasPseudoParam(xrf[2]),
   "-": () => true  // pseudo paramter; <a>
 }[xrf[0]] && () => false)();
-const cancelPseudoParam = (xrf, mc, cnt) => {
-  const [plusp, apps, ppcnt, org] = xrf;
-  xrf[0] = "+f";  // pseudo parameters did not work
-  xrf[1] = org;   // original XRF
-  xrf[2] = void 0;
-  xrf[3] = void 0;
-  return [xrf, ["IA", mc, cnt, []]];
-};
+
 const reduceExprWithPP = (xrf0, rstate0) => {
   const [sc0, mc0, cnt0, apps0] = rstate0;
   console.assert(apps0.length == 0);
@@ -694,23 +688,6 @@ const reduceExprWithPP = (xrf0, rstate0) => {
   const [sc1, mc1, cnt1, apps1] = rstate1;
   return ({
     "IA": () => {
-      if (ppcnt + 1 <= 64) {  // add another parameter
-        apps1.push(xrf1);
-        const org1 = apps1[0];
-        apps1.unshift([
-          "app", org1, [
-            "-", ppcnt, void 0, void 0
-          ], void 0
-        ]);
-        //xrf0[0] = "+p";
-        console.assert(plus == "+p");
-        xrf0[1] = apps1;
-        xrf0[2] = ppcnt + 1;
-        xrf0[3] = org;
-        return reduceExprWithPP(xrf0, ["OK", mc1, cnt1, []]);
-      } else {  // pseudo parameters did not work 
-        return cancelPseudoParam(xrf0, mc1, cnt1)
-      }
     },
     "OT": () => {
       let hasPP = false;
@@ -756,41 +733,43 @@ const reduceExprWithPP = (xrf0, rstate0) => {
     () => [xrf1, ["ER", "IE", cnt1, apps1]]  // internal error
   ))();
 };
-const addPseudoParam = (xrf, rstate) => {
-  const [sc, mc, cnt, apps] = rstate;
-  apps.push([...xrf]);
-  const org = apps[0];  // original expression
-  apps.unshift([
-    "app", org, [
-      "-", 0, void 0, void 0
-    ], void 0
-  ]);
-  xrf[0] = "+p";  // expression with pseudo parameters
-  xrf[1] = apps;  // application stack
-  xrf[2] = 1;     // number of pseudo parameters
-  xrf[3] = org;   // original expression
-  return reducePseudoParam(xrf, [sc, mc, cnt, []]);
-};  // addPseudoParam
-const evX_reduce = (xrf0, rstate0) => {
+const evX_cancel = (xrf, mc, cnt) => {
+  xrf[1] = [...xrf];
+  xrf[0] = "+u";
+  xrf[2] = void 0;
+  xrf[3] = void 0;
+  return [xrf, "SC", mc, cnt, void 0];
+};
+const evX_reduce = (xrf0, rstate0, ppcnt, xrfOrg) => () => {
   const [xrf1, rstate1] = reduceXRF(xrf0, rstate0);
   const [sc1, mc1, cnt1, apps1] = rstate1;
-  const rstate2 = [sc1, "D1", 
-  apps1.push(xrf1);
-  const xrfResult = apps1[0];
+  const xrfResult = (apps1.length > 0) ? apps1[0] : xrf1;
   return ({
     "IA": () => {
+       if (ppcnt + 1 <= 64) {  // add another parameter
+        apps1.unshift([
+          "app", xrfResult, [
+            "-", ppcnt, void 0, void 0
+          ], void 0
+        ]);
+        return evX_reduce(xrf1, rstate1, ppcnt + 1, xrfOrg);
+      } else {  // pseudo parameters did not work
+         return evX_cancel(xrfOrg, mc1, cnt1);
+      }
     },
     "OT": () => {
     },
-    "DB": () => ["SC", "DB", cnt1,   // Debug Break
+    "DB": () => {
+      const rstate2 = ["OK", "D1", cnt1, apps1];
+      const next = evX_reduce(xrf1, rstate2);
+      return [xrfResult, "SC", "DB", cnt1, next]; // Debug Break
     },
-    "ER": () => [xrfResult, sc1, mc1, cnt1, void 0]
+    "ER": () => [xrfResult, "ER", mc1, cnt1, void 0]
   }[sc1] ?? (() => [xrfResult, "ER", "IE", cnt1, void 0]));
 };
 const evalXRF = (xrf0, db0, cnt0) => (
-  const mc0 = ({
-    "ND": "D0"
-  evX_reduce(xrf0, ["OK", mc0, cnt0, []])
+  const mc0 = (db0) ? "D0" : "ND";
+  return evX_reduce(xrf0, ["OK", mc0, cnt0, []], 0, xrf0)();
 );  // evalXRF
 /*-------|---------|---------|---------|---------|--------*/
 
