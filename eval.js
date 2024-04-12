@@ -740,15 +740,15 @@ const evX_cancel = (xrf, mc, cnt) => {
   xrf[3] = void 0;
   return [xrf, "SC", mc, cnt, void 0];
 };
-const evX_reduce = (xrf0, rstate0, ppcnt, xrfOrg) => () => {
+const evX_reduce = (xrf0, rstate0, callback, ppcnt, xrfOrg) => () => {
   const [xrf1, rstate1] = reduceXRF(xrf0, rstate0);
   const [sc1, mc1, cnt1, apps1] = rstate1;
-  const xrfResult = (apps1.length > 0) ? apps1[0] : xrf1;
+  const xrfR = (apps1.length > 0) ? apps1[0] : xrf1;  // result
   return ({
     "IA": () => {
        if (ppcnt + 1 <= 64) {  // add another parameter
         apps1.unshift([
-          "app", xrfResult, [
+          "app", xrfR, [
             "-", ppcnt, void 0, void 0
           ], void 0
         ]);
@@ -762,14 +762,15 @@ const evX_reduce = (xrf0, rstate0, ppcnt, xrfOrg) => () => {
     "DB": () => {
       const rstate2 = ["OK", "D1", cnt1, apps1];
       const next = evX_reduce(xrf1, rstate2);
-      return [xrfResult, "SC", "DB", cnt1, next]; // Debug Break
+      return [xrfR, "SC", "DB", cnt1, next]; // Debug Break
     },
-    "ER": () => [xrfResult, "ER", mc1, cnt1, void 0]
-  }[sc1] ?? (() => [xrfResult, "ER", "IE", cnt1, void 0]));
+    "ER": () => [xrfR, "ER", mc1, cnt1, void 0]
+  }[sc1] ?? (() => [xrfR, "ER", "IE", cnt1, void 0]));
 };
-const evalXRF = (xrf0, db0, cnt0) => (
-  const mc0 = (db0) ? "D0" : "ND";
-  return evX_reduce(xrf0, ["OK", mc0, cnt0, []], 0, xrf0)();
+const evalXRF = (xrf, debug, cnt, callback) => (
+  const mc = (debug) ? "D0" : "ND";
+  const rstate = ["OK", mc, cnt, []];
+  return evX_reduce(xrf, rstate, callback, 0, xrf)();
 );  // evalXRF
 /*-------|---------|---------|---------|---------|--------*/
 
