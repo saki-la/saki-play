@@ -62,8 +62,6 @@
   ["ER", "NV", cnt, apps]  // error: failed to reduce by native function
   ["ER", "IE", cnt, apps]  // error: internal error (a bug in the code)
 
-
-
   input/output example (priority order)
   (x|y| y) <-> JSON boolean false
   (x|y| x) <-> JSON boolean true
@@ -71,6 +69,16 @@
   (f|x| f 65; f|x| f 66; f|x| f 67; f|x| x) <-> text ABC
   (f|x| f (x|y| y); f|x| f 66; f|x| f 67; f|x| x) <-> JSON array [false, 66, 67]
   (f|x| f (x|y| y); f|x| f (f|x| f 66; f|x| f 67; f|x| x); f|x| x) <-> JSON array [false, "BC"]
+
+  evalXRF callback object
+    json: (j, cnt)
+    sel: (i, d, params, cnt)
+    cmb: (cmb, n, x, y, cnt)
+      // cmb is either "S", "K", "C", "B" or "I"
+      // n is 1 or greater interger if cmb is "S", "K", "C" or "B", and n is undefined if cmb is "I"
+      // x and/or y may be void 0, otherwise eval func (cnt, callback)
+    ec: (cont, cnt)
+    err: (ec, cnt, xrf)
 */
 
 "use strict";
@@ -733,44 +741,62 @@ const reduceExprWithPP = (xrf0, rstate0) => {
     () => [xrf1, ["ER", "IE", cnt1, apps1]]  // internal error
   ))();
 };
-const evX_cancel = (xrf, mc, cnt) => {
+const evCancel = (xrf, mc, cnt) => {
   xrf[1] = [...xrf];
-  xrf[0] = "+u";
+  xrf[0] = "+u";  // unevaluable (pseudo parameters did not work)
   xrf[2] = void 0;
   xrf[3] = void 0;
   return [xrf, "SC", mc, cnt, void 0];
 };
-const evX_reduce = (xrf0, rstate0, callback, ppcnt, xrfOrg) => () => {
+const evReduce = (xrf0, rstate0, callback, ppcnt, xrfOrg) => () => {
   const [xrf1, rstate1] = reduceXRF(xrf0, rstate0);
   const [sc1, mc1, cnt1, apps1] = rstate1;
-  const xrfR = (apps1.length > 0) ? apps1[0] : xrf1;  // result
+  const numParams = apps1.length;
+  const xrfR = (numParams > 0) ? apps1[0] : xrf1;  // result
   return ({
-    "IA": () => {
-       if (ppcnt + 1 <= 64) {  // add another parameter
+    "IA": () => {  // insufficient arguments
+       if (ppcnt + 1 <= 64) {  // add another pseudo parameter
         apps1.unshift([
           "app", xrfR, [
             "-", ppcnt, void 0, void 0
           ], void 0
         ]);
-        return evX_reduce(xrf1, rstate1, ppcnt + 1, xrfOrg);
+        return evReduce(xrf1, rstate1, ppcnt + 1, xrfOrg);
       } else {  // pseudo parameters did not work
-         return evX_cancel(xrfOrg, mc1, cnt1);
+         return evCancel(xrfOrg, mc1, cnt1);  // fallback to original expression
       }
     },
-    "OT": () => {
+    "OT": () => {  // pseudo parameter found
+      console.assert(xrf1[0] == "-");
+      // make sure no pseudo parameters left
+      for (let i = 0; i < numParams; ++i) {
+        if (hasPseudoParam(apps1[i])) {
+          return evCancel(xrfOrg, mc1, cnt1);
+        }
+      }
+      // now replace it with a selector
+      xrf1[0] = "+.";
+      //xrf1[1] = xrf1[1];
+      xrf1[2] = ppcnt;
+      xrf1[3] = numParams;
+
+      
+      
     },
-    "DB": () => {
+    "DB": () => {  // debug break
       const rstate2 = ["OK", "D1", cnt1, apps1];
       const next = evX_reduce(xrf1, rstate2);
       return [xrfR, "SC", "DB", cnt1, next]; // Debug Break
     },
-    "ER": () => [xrfR, "ER", mc1, cnt1, void 0]
-  }[sc1] ?? (() => [xrfR, "ER", "IE", cnt1, void 0]));
+    "ER": () => [xrfR, "ER", mc1, cnt1, void 0]  // error
+  }[sc1] ?? (  // valid or unexpected state
+    () => [xrfR, "ER", "IE", cnt1, void 0])  // internal error
+  );
 };
 const evalXRF = (xrf, debug, cnt, callback) => (
   const mc = (debug) ? "D0" : "ND";
   const rstate = ["OK", mc, cnt, []];
-  return evX_reduce(xrf, rstate, callback, 0, xrf)();
+  return evReduce(xrf, rstate, callback, 0, xrf)();
 );  // evalXRF
 /*-------|---------|---------|---------|---------|--------*/
 
